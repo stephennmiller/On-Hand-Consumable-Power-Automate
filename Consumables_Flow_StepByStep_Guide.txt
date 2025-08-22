@@ -1,0 +1,396 @@
+
+Title: Power Automate – Consumables Tracking (Step-by-Step Build Guide)
+Version: 1.0
+Author: ChatGPT
+Updated: now
+
+====================================================================
+OVERVIEW
+====================================================================
+Goal
+- Implement modular, robust Power Automate flows that:
+  1) Validate and normalize technician input (Tech Transactions list)
+  2) Write additive transactions to On-Hand Material
+  3) Maintain an aggregated OnHandQty per Part+Batch (and optionally per Location)
+  4) Enforce PO selection rules on ISSUE transactions
+  5) Provide audit trail and error handling
+
+Lists (finalized names from previous planning)
+1) Parts (master data)
+   - PartNumber (Text, unique)
+   - Description (Text)
+   - MaterialType (Choice/Text)
+   - UOM (Text)
+   - IsActive (Yes/No)
+2) PO List (lookup)
+   - PONumber (Text, unique)
+   - AssemblyNumber (Text)
+   - AssemblyDescription (Text)
+   - ChargingCode (Text)
+   - IsOpen (Yes/No)
+3) Tech Transactions (tech-facing, simple form)
+   - TransactionType (Choice: Issue, Receive) [Required]
+   - PONumber (Text) [Required for Issue; optional for Receive]
+   - PartNumber (Text) [Required]
+   - Batch (Text) [Required]
+   - Qty (Number) [Required]
+   - UOM (Text) [Required]
+   - Location (Text, optional; e.g., Floor, Crib, Line01)
+   - PostStatus (Text, hidden): Posted | Error
+   - PostMessage (Multiline, hidden)
+   - PostedAt (DateTime, hidden)
+   - PostedBy (Person, hidden)
+4) On-Hand Material (aggregated + additive)
+   - PartNumber (Text, indexed)
+   - Batch (Text, indexed)
+   - Location (Text, optional)
+   - UOM (Text)
+   - OnHandQty (Number, default 0)
+   - LastMovementAt (DateTime)
+   - LastMovementType (Text: Receive, Issue)
+   - LastMovementRefId (Text: Tech Transactions ID)
+   - IsActive (Yes/No)
+
+Transaction Math
+- We record each Tech Transactions item as a “movement” (Receive: +Qty, Issue: –Qty)
+- On-Hand Material stores a single row per Part+Batch(+Location) with a live OnHandQty
+- Optionally keep a Movement Ledger list if you need full line-by-line history
+
+====================================================================
+MODULE 0 – COMMON EXPRESSIONS & GUARDS
+====================================================================
+Use these anywhere expressions are needed:
+
+Trim helpers
+- trim(outputs('Compose_PartNumber'))
+- trim(outputs('Compose_Batch'))
+
+Coalesce to default
+- coalesce(triggerBody()?['Qty'], 0)
+
+Normalize TransactionType
+- toUpper(coalesce(triggerBody()?['TransactionType'], ''))
+
+Parse numeric qty
+- float(coalesce(triggerBody()?['Qty'], 0))
+
+Now timestamp
+- utcNow()
+
+Non-empty checks
+- equals(length(trim(variables('vPart'))), 0) => true means missing
+- greater(float(variables('vQty')), 0)
+
+====================================================================
+MODULE 1 – FLOW: Tech Intake Validation (manual/automated)
+====================================================================
+Purpose
+- Trigger whenever a new Tech Transactions item is created
+- Validate required fields based on TransactionType
+- Guard against bad qty and missing PO for Issue
+- Normalize text (trims), and write PostStatus/PostMessage back to the item
+- If valid, set PostStatus=“Validated” for downstream flows
+
+Suggested Flow Name
+- TT – Intake Validate
+
+Trigger
+- When an item is created (SharePoint)
+
+Trigger Settings
+- Site Address: <your site>
+- List Name: Tech Transactions
+
+STEP 1 (Initialize) – “Init variables”
+- Initialize variable vType (String): toUpper(coalesce(triggerBody()?['TransactionType'], ''))
+- Initialize variable vPO (String): trim(coalesce(triggerBody()?['PONumber'], ''))
+- Initialize variable vPart (String): trim(coalesce(triggerBody()?['PartNumber'], ''))
+- Initialize variable vBatch (String): trim(coalesce(triggerBody()?['Batch'], ''))
+- Initialize variable vUOM (String): trim(coalesce(triggerBody()?['UOM'], ''))
+- Initialize variable vLoc (String): trim(coalesce(triggerBody()?['Location'], ''))
+- Initialize variable vQty (Float): float(coalesce(triggerBody()?['Qty'], 0))
+
+STEP 2 (Condition) – “Type must be Issue or Receive”
+- Left: variables('vType')
+- Operand: is equal to
+- Right: 'ISSUE' OR 'RECEIVE' (use nested conditions or an Or())
+  Expression for Or: or(equals(variables('vType'),'ISSUE'), equals(variables('vType'),'RECEIVE'))
+- If NO: Update item → PostStatus='Error', PostMessage='Invalid TransactionType', PostedAt=utcNow()
+
+STEP 3 (Condition) – “Qty > 0”
+- Left: variables('vQty')
+- Operand: is greater than
+- Right: 0
+- If NO: Update item → PostStatus='Error', PostMessage='Qty must be > 0', PostedAt=utcNow()
+
+STEP 4 (Condition) – “Part required”
+- Left: length(variables('vPart'))
+- Operand: is greater than
+- Right: 0
+- If NO: Update item → PostStatus='Error', PostMessage='PartNumber required', PostedAt=utcNow()
+
+STEP 5 (Condition) – “Batch required”
+- Left: length(variables('vBatch'))
+- Operand: is greater than
+- Right: 0
+- If NO: Update item → PostStatus='Error', PostMessage='Batch required', PostedAt=utcNow()
+
+STEP 6 (Condition) – “UOM required”
+- Left: length(variables('vUOM'))
+- Operand: is greater than
+- Right: 0
+- If NO: Update item → PostStatus='Error', PostMessage='UOM required', PostedAt=utcNow()
+
+STEP 7 (Branch) – “If ISSUE, PO required and must exist/open”
+7a (Condition) – Only runs when vType == 'ISSUE'
+- Left: variables('vType')  | Operand: is equal to | Right: 'ISSUE'
+  IF YES → proceed to 7b. IF NO → skip to Step 8.
+
+7b (Condition) – “PO must be provided”
+- Left: length(variables('vPO')) | Operand: is greater than | Right: 0
+- If NO: Update item → PostStatus='Error', PostMessage='PONumber required for Issue', PostedAt=utcNow()
+
+7c (Get items) – “Fetch PO record”
+- Site/List: PO List
+- Filter Query: PONumber eq '@{variables(''vPO'')}'
+- Top Count: 1
+- Debug: Add a Compose → length(body('Get_items')?['value'])
+
+7d (Condition) – “PO exists and is open”
+- Left: length(body('Get_items')?['value'])
+- Operand: is greater than
+- Right: 0
+AND
+- Left: first(body('Get_items')?['value'])?['IsOpen']
+- Operand: is equal to
+- Right: true
+- If NO: Update item → PostStatus='Error', PostMessage='PO not found or closed', PostedAt=utcNow()
+
+STEP 8 (Success) – “Mark Validated”
+- Update item:
+  PostStatus='Validated'
+  PostMessage=''
+  PostedAt=utcNow()
+  PostedBy=triggerOutputs()?['headers']['x-ms-user-name'] (optional)
+
+TEST POINTS
+- Create sample items for Issue/Receive with missing fields to see friendly errors
+- Confirm only validated rows move on
+
+====================================================================
+MODULE 2 – FLOW: Post RECEIVES to On-Hand
+====================================================================
+Purpose
+- On validated Receive transactions, add Qty to On-Hand Material
+- Upsert (insert if not found, else update existing aggregate row)
+
+Suggested Flow Name
+- TT – Receive → OnHand Upsert
+
+Trigger
+- When an item is created or modified (SharePoint: Tech Transactions)
+Trigger Condition (to avoid loops)
+- @and(equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
+       equals(toUpper(triggerOutputs()?['body/TransactionType']), 'RECEIVE'))
+
+STEP 1 – “Cache fields” (Compose or Variables)
+- vPart, vBatch, vQty, vUOM, vLoc, vId
+
+STEP 2 – “Get matching On-Hand row”
+- Get items (On-Hand Material)
+- Filter Query:
+  PartNumber eq '@{variables(''vPart'')}' and Batch eq '@{variables(''vBatch'')}' and UOM eq '@{variables(''vUOM'')}' and (Location eq '@{variables(''vLoc'')}' or '@{variables(''vLoc'')}' eq '')
+  (If you do not use Location, omit it from filter)
+- Top Count: 1
+
+STEP 3 (Condition) – “Row exists?”
+- Left: length(body('Get_items')?['value'])
+- Operand: is greater than
+- Right: 0
+
+If YES → STEP 4 “Update existing”
+- Target ID: first(body('Get_items')?['value'])?['ID']
+- OnHandQty: add(float(first(...)?['OnHandQty']), float(variables('vQty')))
+- LastMovementAt: utcNow()
+- LastMovementType: 'Receive'
+- LastMovementRefId: variables('vId')
+- IsActive: true
+
+If NO → STEP 5 “Create new”
+- Create item (On-Hand Material)
+  PartNumber: vPart
+  Batch: vBatch
+  UOM: vUOM
+  Location: vLoc (if used)
+  OnHandQty: float(variables('vQty'))
+  LastMovementAt: utcNow()
+  LastMovementType: 'Receive'
+  LastMovementRefId: vId
+  IsActive: true
+
+STEP 6 – “Mark Posted” (Tech Transactions)
+- Update item: PostStatus='Posted', PostMessage='', PostedAt=utcNow()
+
+DEBUG
+- Compose results of Filter Query & chosen ID
+TEST POINT
+- Create a Receive, watch On-Hand grow
+
+====================================================================
+MODULE 3 – FLOW: Post ISSUES to On-Hand (with stock check)
+====================================================================
+Purpose
+- On validated Issue transactions, subtract Qty from On-Hand Material
+- Optional guard: block overspend if insufficient qty
+
+Suggested Flow Name
+- TT – Issue → OnHand Upsert
+
+Trigger
+- When an item is created or modified (Tech Transactions)
+Trigger Condition
+- @and(equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
+       equals(toUpper(triggerOutputs()?['body/TransactionType']), 'ISSUE'))
+
+STEP 1 – “Cache fields”
+- vPart, vBatch, vQty, vUOM, vLoc, vId, vPO
+
+STEP 2 – “Get matching On-Hand row”
+- Get items (On-Hand Material) with same filter pattern as Module 2
+- Top Count: 1
+
+STEP 3 (Condition) – “Row exists?”
+- Left: length(body('Get_items')?['value']) | is greater than | 0
+- If NO: Update Tech Transactions → PostStatus='Error', PostMessage='No stock for Part+Batch', STOP
+
+STEP 4 – “Compute NewQty” (Compose)
+- add(float(first(...)?['OnHandQty']), mul(float(variables('vQty')), -1))
+
+STEP 5 (Condition) – “Sufficient stock?” (optional hard block)
+- Left: outputs('Compose_NewQty')
+- Operand: is greater than or equal to
+- Right: 0
+- If NO: Update Tech Transactions → PostStatus='Error', PostMessage='Insufficient on-hand', STOP
+- If YES → STEP 6
+
+STEP 6 – “Update On-Hand”
+- Update item (On-Hand Material)
+  OnHandQty: outputs('Compose_NewQty')
+  LastMovementAt: utcNow()
+  LastMovementType: 'Issue'
+  LastMovementRefId: vId
+  IsActive: if(outputs('Compose_NewQty') > 0, true, false) → build with a condition
+
+STEP 7 – “Mark Posted” (Tech Transactions)
+- Update item: PostStatus='Posted', PostMessage='', PostedAt=utcNow()
+
+DEBUG
+- Compose inputs/outputs of math
+TEST POINT
+- Issue smaller qty first, then exact qty to reach 0, then try to overspend to validate error
+
+====================================================================
+MODULE 4 – FLOW: Description Autofill (optional helper)
+====================================================================
+Purpose
+- When tech enters PartNumber only, fill Description and UOM from Parts
+
+Suggested Flow Name
+- TT – Autofill Description
+
+Trigger
+- When an item is created or modified (Tech Transactions)
+Trigger Condition
+- @and(equals(triggerOutputs()?['body/PostStatus'], ''),
+       greater(length(coalesce(triggerBody()?['PartNumber'], '')), 0))
+
+STEP 1 – “Get Part”
+- Get items (Parts) with Filter Query: PartNumber eq '@{triggerBody()?[''PartNumber'']}'
+- Top Count: 1
+
+STEP 2 (Condition) – “Found?”
+- Left: length(body('Get_items')?['value']) | is greater than | 0
+- If YES → Update Tech Transactions: Description=first(...)?['Description'], UOM=first(...)?['UOM']
+- If NO → do nothing
+
+DEBUG
+- Compose length and retrieved fields
+TEST POINT
+- Enter a known PartNumber and see fields populate
+
+====================================================================
+MODULE 5 – FLOW: On-Hand Recalc (maintenance job)
+====================================================================
+Purpose
+- Nightly rebuild of On-Hand from Tech Transactions to defend against drift
+
+Suggested Flow Name
+- OH – Nightly Recalc
+
+Trigger
+- Recurrence: Every night (e.g., 02:00)
+
+STEP 1 – “Reset scan”
+- Initialize array aGroups = empty()
+- Initialize object oTotals = {}  (use “Initialize variable” with JSON)
+
+STEP 2 – “Get ALL Transactions (last 90 days)”
+- Get items (Tech Transactions) with a Filter Query on Created date if volume is large
+
+STEP 3 – “For each transaction”
+- Key = concat(PartNumber, '||', Batch, '||', coalesce(Location,''), '||', UOM)
+- Delta = if(upper(TransactionType) = 'RECEIVE', Qty, -1*Qty)
+- Accumulate in oTotals[Key] += Delta
+
+STEP 4 – “Write back to On-Hand”
+- (Option A) Clear and rebuild On-Hand
+- (Option B) For each Key, Get items On-Hand by key; create/update with tally
+
+DEBUG
+- Compose unique keys count and sum of deltas
+TEST POINT
+- Run after some transactions and cross-check a few sampled Part+Batch
+
+====================================================================
+SEARCH TERMS (Power Automate actions to add)
+====================================================================
+- Trigger: SharePoint – When an item is created / When an item is created or modified
+- SharePoint – Get item / Get items / Create item / Update item
+- Initialize variable / Set variable / Compose
+- Condition
+- Terminate
+- Filter array (optional)
+- Apply to each
+- Delay until / Scope (optional)
+- Recurrence (for nightly job)
+
+====================================================================
+NAMING, DEBUG & BUILD TIPS
+====================================================================
+Naming
+- Prefix by area (TT = Tech Transactions, OH = On-Hand)
+- Suffix by purpose (Validate, Receive Upsert, Issue Upsert, Recalc)
+
+Avoid Infinite Loops
+- Use Trigger Conditions so flows only run on PostStatus='Validated' or specific transitions
+- When updating Tech Transactions inside flows, avoid re-triggering “Validate” by checking PostStatus
+
+Debug Points
+- After every Get items, add a Compose length()
+- Before math, Compose current and new values
+- On errors, always write PostMessage with a human-friendly explanation
+
+When to use Expressions vs Dynamic Content
+- Use Dynamic Content for simple field copies
+- Use Expressions for math (add, sub, mul), string trims, upper-casing, Or/And logic, and null coalesce
+
+Stop & Test Strategy
+- Build Module 1 first. Test all error cases and the “Validated” outcome
+- Build Module 2 next. Test Receive path (create new On-Hand row, then update same row)
+- Build Module 3 next. Test Issue path (sufficient and insufficient scenarios)
+- (Optional) Add Module 4 to improve tech UX
+- Finally, add Module 5 for nightly reconciliation
+
+====================================================================
+END
+====================================================================
