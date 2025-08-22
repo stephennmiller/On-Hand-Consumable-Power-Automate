@@ -38,6 +38,8 @@ reviews:
     # Markdownlint for markdown files
     markdownlint:
       enabled: true
+      # Use project's custom markdownlint config
+      config_file: ".markdownlint.jsonc"
     # LanguageTool for grammar and style
     languagetool:
       enabled: true
@@ -52,6 +54,11 @@ reviews:
     - "!**/node_modules/**"
     - "!**/dist/**"
     - "!**/build/**"
+  
+  # GitHub checks configuration
+  github_checks:
+    # Extend timeout for large documentation reviews
+    timeout_minutes: 10
 
 # Language settings
 language: "en-US"

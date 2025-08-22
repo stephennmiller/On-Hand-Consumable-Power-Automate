@@ -196,7 +196,17 @@ Add **"Condition"**: Check if items returned
 
 **WARNING:** Only use if you're certain about data recovery
 
-**Note:** For batch deletion, implement proper SharePoint batch API formatting or process items individually. Refer to Microsoft's SharePoint REST API documentation for batch request syntax.
+**Safe Deletion Pattern:**
+
+1. **Backup First:** Export existing On Hand records to Excel/CSV before deletion
+2. **Use Soft Delete:** Add a "Deleted" flag instead of hard deletion when possible
+3. **Batch Processing:** For large deletions, use SharePoint batch API:
+   - Process in chunks of 100 items
+   - Include error handling for partial failures
+   - Log all deletion operations
+4. **Verification:** Count records before and after to confirm deletion scope
+
+**Note:** For batch deletion implementation, refer to Microsoft's SharePoint REST API documentation for proper batch request syntax. Consider using the Recycle Bin for recoverable deletions.
 
 ### Step 5: Process Transactions with Pagination
 

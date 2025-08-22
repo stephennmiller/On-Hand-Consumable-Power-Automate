@@ -121,6 +121,14 @@ Add **"Get items - SharePoint"** action:
 - Top Count: 1
 - **Select Query:** `PartNumber,Description,DefaultUOM,RequiresBatch,RequiresLocation`
 
+**Settings (⚙️ icon):**
+
+- **Retry Policy:**
+  - Type: Exponential Interval
+  - Count: 3
+  - Interval: PT10S (10 seconds)
+  - Maximum Interval: PT1H (1 hour)
+
 ### Step 6: Check if Part Found
 
 Add **"Condition"** action:
