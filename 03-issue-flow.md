@@ -13,7 +13,7 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 
 **Trigger Condition:** (Critical to prevent loops!)
 
-```
+```powerautomate
 @and(
   equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
   equals(toUpper(triggerOutputs()?['body/TransactionType']), 'ISSUE')
@@ -49,14 +49,14 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 3. Click **"Add"**
 4. Paste the trigger condition:
 
-```
+```powerautomate
 @and(
   equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
   equals(toUpper(triggerOutputs()?['body/TransactionType']), 'ISSUE')
 )
 ```
 
-5. Click **"Done"**
+1. Click **"Done"**
 
 ### Step 3: Add Atomic Transaction Scope
 
@@ -147,13 +147,13 @@ Add **"Get items - SharePoint"** action:
 - List Name: On-Hand Material
 - Filter Query:
 
-```
+```powerautomate
 (PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (IsActive eq true)
 ```
 
 **Note:** If using Location field:
 
-```
+```powerautomate
 (PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (Location eq '@{variables('vLoc')}') and (IsActive eq true)
 ```
 
@@ -175,7 +175,7 @@ Add **"Condition"** action:
 - Click "Edit in advanced mode"
 - Paste:
 
-```
+```powerautomate
 @greater(length(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value']), 0)
 ```
 
@@ -224,7 +224,7 @@ Add **"Compose"** action:
 
 **Inputs:**
 
-```
+```powerautomate
 @sub(
   float(variables('vOriginalQty')),
   float(variables('vQty'))
@@ -263,7 +263,7 @@ Add **"Update item - SharePoint"** action:
   - PostStatus: `Error`
   - PostMessage:
 
-    ```
+```powerautomate
     Insufficient inventory. Available: @{variables('vOriginalQty')}, Requested: @{variables('vQty')}
     ```
 
@@ -290,7 +290,7 @@ Add **"Update item - SharePoint"** action:
   - LastMovementRefId: `@{variables('vId')}`
   - IsActive:
 
-    ```
+```powerautomate
     @if(greater(outputs('Compute_New_Qty'), 0), true, false)
     ```
 
@@ -415,7 +415,7 @@ Add **"Send an email (V2)"** action:
 - Subject: `CRITICAL: Issue Processing Failed - Rollback @{if(variables('vUpdateCompleted'), 'Executed', 'N/A')}`
 - Body:
 
-```
+```powerautomate
 Transaction ID: @{variables('vId')}
 Part: @{variables('vPart')}
 Batch: @{variables('vBatch')}
@@ -486,7 +486,7 @@ Instead of blocking insufficient stock, allow but warn:
 
 Modify Step 7 to maintain minimum stock:
 
-```
+```powerautomate
 @greater(outputs('Compute_New_Qty'), 10)
 ```
 
@@ -520,7 +520,7 @@ This maintains a safety stock of 10 units.
 
 ### Subtract Quantity
 
-```
+```powerautomate
 @sub(
   float(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']),
   float(variables('vQty'))
@@ -529,13 +529,13 @@ This maintains a safety stock of 10 units.
 
 ### Conditional IsActive
 
-```
+```powerautomate
 @if(greater(outputs('Compute_New_Qty'), 0), true, false)
 ```
 
 ### Format Error Message
 
-```
+```powerautomate
 Insufficient inventory. Available: @{first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']}, Requested: @{variables('vQty')}
 ```
 

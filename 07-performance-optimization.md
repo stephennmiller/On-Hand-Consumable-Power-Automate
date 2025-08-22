@@ -14,7 +14,7 @@ SharePoint lists have a view threshold of 5000 items. Queries returning more wil
 
 1. **Indexed Columns (Required)**
 
-```
+```text
 Tech Transactions:
 - PartNumber (Indexed)
 - PostStatus (Indexed)
@@ -28,9 +28,9 @@ On-Hand Material:
 - Compound: PartNumber + Batch + IsActive
 ```
 
-2. **Filter First on Indexed Columns**
+1. **Filter First on Indexed Columns**
 
-```
+```text
 ✅ Good: PartNumber eq 'ABC123' and Batch eq 'LOT001'
 ❌ Bad: Description eq 'Some text' and Qty gt 100
 ```
@@ -39,7 +39,7 @@ On-Hand Material:
 
 ### Pattern 1: Simple Pagination (< 100k items)
 
-```
+```yaml
 Variables:
 - vSkipCount: Integer (0)
 - vBatchSize: Integer (100)
@@ -62,7 +62,7 @@ Do Until: equals(variables('vHasMore'), false)
 
 ### Pattern 2: ID-Based Pagination (Most Reliable)
 
-```
+```yaml
 Variables:
 - vLastId: Integer (0)
 - vBatchSize: Integer (100)
@@ -86,7 +86,7 @@ Do Until: equals(variables('vHasMore'), false)
 
 ### Pattern 3: Date-Based Chunking
 
-```
+```yaml
 Variables:
 - vStartDate: DateTime
 - vEndDate: DateTime
@@ -137,7 +137,7 @@ Instead of updating items one by one, use batch requests:
     }
   ]
 }
-```
+```text
 
 **Implementation:**
 
@@ -157,11 +157,13 @@ Instead of updating items one by one, use batch requests:
 ### Configure Optimal Concurrency
 
 ```
+
 Apply to each:
   Settings:
     Concurrency: On
     Degree of Parallelism: [1-50]
-```
+
+```text
 
 #### Recommended Settings by Scenario
 
@@ -178,10 +180,12 @@ Apply to each:
 For critical sections:
 
 ```
+
 Concurrency: 1 (Sequential processing)
 OR
 Implement optimistic locking with version checks
-```
+
+```text
 
 ## Throttling Management
 
@@ -196,6 +200,7 @@ Implement optimistic locking with version checks
 #### 1. Add Strategic Delays
 
 ```
+
 After each operation:
   Delay:
     Count: 100
@@ -205,27 +210,33 @@ After batch of 10:
   Delay:
     Count: 1
     Unit: Second
-```
+
+```text
 
 #### 2. Implement Exponential Backoff
 
 ```
+
 Retry Policy:
   Type: Exponential
   Count: 5
   Interval: PT10S
   Maximum: PT5M
-```
+
+```text
 
 #### 3. Distribute Load
 
 ```
+
 Schedule flows at different times:
+
 - Flow A: Runs at :00
 - Flow B: Runs at :15
 - Flow C: Runs at :30
 - Flow D: Runs at :45
-```
+
+```text
 
 ## Timeout Prevention
 
@@ -239,20 +250,24 @@ Schedule flows at different times:
 #### 1. Child Flow Pattern
 
 ```
+
 Parent Flow:
   Get all items to process
   For each batch of 100:
     Call child flow with batch
-    
+
 Child Flow:
   Process 100 items
   Return status
-```
+
+```text
 
 #### 2. Continuation Token Pattern
 
 ```
+
 Variables:
+
 - vContinuationToken: String
 - vIsComplete: Boolean (false)
 
@@ -264,11 +279,13 @@ Do Until vIsComplete:
     Save state
     Trigger new instance with token
     Terminate current
-```
+
+```text
 
 #### 3. Queue-Based Processing
 
 ```
+
 Flow 1: Queue Builder
   Get items to process
   Add to SharePoint queue list
@@ -281,7 +298,8 @@ Flow 2: Queue Processor (runs every 5 min)
 Flow 3: Queue Monitor
   Check for stuck items
   Retry failed items
-```
+
+```text
 
 ## Query Optimization
 
@@ -290,34 +308,42 @@ Flow 3: Queue Monitor
 Reduce data transfer by selecting only needed fields:
 
 ```
+
 Get items:
   Select Query: ID,PartNumber,Qty,PostStatus
   // Don't retrieve all columns
-```
+
+```text
 
 ### Use Filter Query Effectively
 
 ```
+
 ✅ Optimal:
 PartNumber eq 'ABC' and PostStatus eq 'Validated' and Created gt '2024-01-01'
 
 ❌ Suboptimal:
 PostStatus eq 'Validated' // Then filter in Flow
-```
+
+```text
 
 ### Use Order By Strategically
 
 ```
+
 Order By: Created desc
 // Gets newest first, useful for recent data processing
-```
+
+```text
 
 ## Caching Strategies
 
 ### 1. Variable Caching
 
 ```
+
 Variables:
+
 - vPartsCache: Object
 - vPOCache: Object
 
@@ -325,11 +351,13 @@ Variables:
 If not contains(vPartsCache, PartNumber):
   Get from SharePoint
   Add to vPartsCache
-```
+
+```text
 
 ### 2. Daily Cache List
 
 ```
+
 Flow: Daily Cache Builder (runs at midnight)
   Get all Parts
   Get all active POs
@@ -338,11 +366,13 @@ Flow: Daily Cache Builder (runs at midnight)
 Main Flows:
   Read from cache list (faster)
   Fallback to source if not found
-```
+
+```text
 
 ### 3. Compose Action Caching
 
 ```
+
 Compose: Build lookup table
 {
   "PART001": { "Description": "Widget", "UOM": "EA" },
@@ -350,14 +380,17 @@ Compose: Build lookup table
 }
 
 // Use throughout flow without repeated queries
-```
+
+```text
 
 ## Performance Monitoring
 
 ### Add Performance Metrics
 
 ```
+
 Variables:
+
 - vStartTime: utcNow()
 - vRecordCount: 0
 
@@ -371,7 +404,8 @@ Compose: Performance Metrics
 }
 
 Log to Performance Tracking list
-```
+
+```text
 
 ### Key Metrics to Track
 
@@ -465,25 +499,30 @@ Log to Performance Tracking list
 ### 1. Parallel Branch Processing
 
 ```
+
 Parallel Branch 1: Process Part A items
 Parallel Branch 2: Process Part B items
 Parallel Branch 3: Process Part C items
 
 Join: Wait for all branches
 Consolidate results
-```
+
+```text
 
 ### 2. Lazy Loading Pattern
 
 ```
+
 Get minimal data first
 Only fetch details when needed
 Cache fetched details
-```
+
+```text
 
 ### 3. Pre-aggregation
 
 ```
+
 Nightly Job:
   Calculate daily totals
   Store in summary table
@@ -491,16 +530,19 @@ Nightly Job:
 Daily Flows:
   Read from summary (fast)
   Only calculate deltas
-```
+
+```text
 
 ### 4. Smart Scheduling
 
 ```
+
 Heavy flows: Run during off-hours
 Light flows: Run during business hours
 Distribute start times to avoid peaks
 Use trigger conditions to skip when not needed
-```
+
+```text
 
 ## Recommended Architecture for Scale
 

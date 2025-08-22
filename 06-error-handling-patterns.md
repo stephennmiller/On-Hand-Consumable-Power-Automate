@@ -10,7 +10,7 @@ This guide provides comprehensive error handling patterns for production-ready P
 
 Every production flow should implement this three-scope pattern:
 
-```
+```yaml
 Scope: Try
   - Main business logic
   - All primary actions
@@ -63,7 +63,7 @@ Add **"Compose"** action:
 
 **Inputs:**
 
-```
+```json
 {
   "ErrorTime": "@{utcNow()}",
   "FlowName": "@{workflow()?['name']}",
@@ -96,7 +96,7 @@ Add **"Condition"** action:
 
 **Configure:** Check severity
 
-```
+```powerautomate
 @contains(result('Try_-_Main_Logic'), 'Critical')
 ```
 
@@ -133,7 +133,7 @@ For all SharePoint actions:
   "interval": "PT10S",
   "maximumInterval": "PT1H"
 }
-```
+```text
 
 ### Action-Specific Settings
 
@@ -156,7 +156,7 @@ For all SharePoint actions:
   "count": 2,
   "interval": "PT5S"
 }
-```
+```text
 
 #### Lock Acquisition (Fail Fast)
 
@@ -208,9 +208,9 @@ For all SharePoint actions:
 
 For operations that modify data:
 
-### Implementation
+### Compensating Transaction Implementation
 
-```
+```text
 1. Store original state
 2. Perform operation
 3. On failure:
@@ -222,7 +222,7 @@ For operations that modify data:
 
 ### Example: Inventory Issue Rollback
 
-```
+```yaml
 Variables:
 - vOriginalQty: Store before update
 - vUpdateCompleted: Track if update happened
@@ -238,9 +238,9 @@ Compensate Scope:
 
 Prevent cascading failures:
 
-### Implementation
+### Circuit Breaker Implementation
 
-```
+```yaml
 Variables:
 - vFailureCount: Integer (0)
 - vCircuitOpen: Boolean (false)
@@ -314,7 +314,7 @@ After Failure:
 
 ### Alert Aggregation
 
-```
+```yaml
 Condition: 3+ errors in 5 minutes
 Action: Escalate to Critical
 Reason: Indicates systemic issue
@@ -322,7 +322,7 @@ Reason: Indicates systemic issue
 
 ### Performance Degradation
 
-```
+```yaml
 Condition: Execution time > 3x average
 Action: Warning alert
 Reason: Possible throttling or data issue
@@ -330,7 +330,7 @@ Reason: Possible throttling or data issue
 
 ### Failure Rate
 
-```
+```yaml
 Condition: >10% failure rate in hour
 Action: Pause flow, alert admin
 Reason: Prevent data corruption
@@ -366,26 +366,26 @@ Reason: Prevent data corruption
 
 1. **Identify Scope**
 
-   ```
+```text
    Query: PostStatus eq 'Error' and Created gt '[Date]'
    Action: Export to Excel for analysis
    ```
 
-2. **Categorize Errors**
+1. **Categorize Errors**
    - Group by error message
    - Identify patterns
    - Prioritize by impact
 
-3. **Bulk Retry**
+1. **Bulk Retry**
 
-   ```
+```text
    For each error record:
      Reset PostStatus to ''
      Clear PostMessage
      Flow will reprocess
    ```
 
-4. **Verify Recovery**
+1. **Verify Recovery**
    - Check all retried records
    - Validate data consistency
    - Update documentation
@@ -472,7 +472,7 @@ Reason: Prevent data corruption
     }
   }
 }
-```
+```text
 
 ### Log Analytics Queries
 

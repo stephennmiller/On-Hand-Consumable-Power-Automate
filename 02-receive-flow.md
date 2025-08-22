@@ -13,7 +13,7 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 
 **Trigger Condition:** (Critical to prevent loops!)
 
-```
+```powerautomate
 @and(
   equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
   equals(toUpper(triggerOutputs()?['body/TransactionType']), 'RECEIVE')
@@ -48,14 +48,14 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 3. Click **"Add"**
 4. Paste the trigger condition:
 
-```
+```powerautomate
 @and(
   equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
   equals(toUpper(triggerOutputs()?['body/TransactionType']), 'RECEIVE')
 )
 ```
 
-5. Click **"Done"**
+1. Click **"Done"
 
 ### Step 3: Add Transaction Scope
 
@@ -122,7 +122,9 @@ Add **"Delay"** action:
 - Count: 100
 - Unit: Millisecond
 
-*This prevents SharePoint throttling when processing multiple transactions*
+#### Throttling Protection
+
+This prevents SharePoint throttling when processing multiple transactions.
 
 ### Step 6: Get Matching On-Hand Row with Pagination
 
@@ -136,13 +138,13 @@ Add **"Get items - SharePoint"** action:
 - List Name: On-Hand Material
 - Filter Query:
 
-```
+```powerautomate
 (PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (IsActive eq true)
 ```
 
 **Note:** If using Location field, add to filter:
 
-```
+```powerautomate
 (PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (Location eq '@{variables('vLoc')}') and (IsActive eq true)
 ```
 
@@ -165,7 +167,7 @@ Add **"Condition"** action:
 - Click "Edit in advanced mode"
 - Paste:
 
-```
+```powerautomate
 @greater(length(body('Get_On-Hand_for_Part+Batch')?['value']), 0)
 ```
 
@@ -204,7 +206,7 @@ Add **"Update item - SharePoint"** action:
   - Title: ` ` (clear lock)
   - OnHandQty:
 
-    ```
+```text
     add(
       float(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']),
       float(variables('vQty'))
@@ -339,7 +341,7 @@ Add **"Compose"** action at the end:
 
 **Inputs:**
 
-```
+```json
 {
   "FlowRunId": "@{variables('vFlowRunId')}",
   "TransactionId": "@{variables('vId')}",
@@ -407,7 +409,7 @@ Add **"Compose"** action at the end:
 
 ### Add Quantities
 
-```
+```text
 add(
   float(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']),
   float(variables('vQty'))
@@ -416,13 +418,13 @@ add(
 
 ### Get First Item ID
 
-```
+```text
 first(body('Get_On-Hand_for_Part+Batch')?['value'])?['ID']
 ```
 
 ### Check Empty Results
 
-```
+```powerautomate
 @greater(length(body('Get_On-Hand_for_Part+Batch')?['value']), 0)
 ```
 

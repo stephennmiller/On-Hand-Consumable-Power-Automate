@@ -50,7 +50,7 @@ Inside the Try scope, add 8 **"Initialize variable"** actions:
 - **Type:** String
 - **Value:**
 
-```
+```powerautomate
 toUpper(coalesce(triggerBody()?['TransactionType'], ''))
 ```
 
@@ -60,7 +60,7 @@ toUpper(coalesce(triggerBody()?['TransactionType'], ''))
 - **Type:** String
 - **Value:**
 
-```
+```powerautomate
 trim(coalesce(triggerBody()?['PONumber'], ''))
 ```
 
@@ -70,7 +70,7 @@ trim(coalesce(triggerBody()?['PONumber'], ''))
 - **Type:** String
 - **Value:**
 
-```
+```powerautomate
 trim(coalesce(triggerBody()?['PartNumber'], ''))
 ```
 
@@ -80,7 +80,7 @@ trim(coalesce(triggerBody()?['PartNumber'], ''))
 - **Type:** String
 - **Value:**
 
-```
+```powerautomate
 trim(coalesce(triggerBody()?['Batch'], ''))
 ```
 
@@ -90,7 +90,7 @@ trim(coalesce(triggerBody()?['Batch'], ''))
 - **Type:** String
 - **Value:**
 
-```
+```powerautomate
 trim(coalesce(triggerBody()?['UOM'], ''))
 ```
 
@@ -100,7 +100,7 @@ trim(coalesce(triggerBody()?['UOM'], ''))
 - **Type:** String
 - **Value:**
 
-```
+```powerautomate
 trim(coalesce(triggerBody()?['Location'], ''))
 ```
 
@@ -110,7 +110,7 @@ trim(coalesce(triggerBody()?['Location'], ''))
 - **Type:** Float
 - **Value:**
 
-```
+```powerautomate
 float(coalesce(triggerBody()?['Qty'], 0))
 ```
 
@@ -120,7 +120,7 @@ float(coalesce(triggerBody()?['Qty'], 0))
 - **Type:** String
 - **Value:**
 
-```
+```powerautomate
 workflow()?['run']?['name']
 ```
 
@@ -136,7 +136,7 @@ Add **"Get items - SharePoint"** action:
 - List Name: Tech Transactions
 - Filter Query:
 
-```
+```powerautomate
 PartNumber eq '@{variables('vPart')}' and Batch eq '@{variables('vBatch')}' and abs(Qty - @{variables('vQty')}) lt 0.01 and Created ge '@{addMinutes(utcNow(), -1)}' and ID ne @{triggerBody()?['ID']}
 ```
 
@@ -164,7 +164,7 @@ Add **"Condition"** action:
 - Click "Edit in advanced mode"
 - Paste:
 
-```
+```powerautomate
 @or(equals(variables('vType'),'ISSUE'), equals(variables('vType'),'RECEIVE'))
 ```
 
@@ -209,7 +209,7 @@ Add **"Condition"** action:
 - Click "Edit in advanced mode"
 - Paste:
 
-```
+```powerautomate
 @greater(length(variables('vPart')), 0)
 ```
 
@@ -226,7 +226,7 @@ Add **"Condition"** action:
 
 **Configure:**
 
-```
+```powerautomate
 @greater(length(variables('vBatch')), 0)
 ```
 
@@ -243,7 +243,7 @@ Add **"Condition"** action:
 
 **Configure:**
 
-```
+```powerautomate
 @greater(length(variables('vUOM')), 0)
 ```
 
@@ -270,7 +270,7 @@ Add **"Condition"** inside Yes branch:
 
 **Configure:**
 
-```
+```powerautomate
 @greater(length(variables('vPO')), 0)
 ```
 
@@ -301,7 +301,7 @@ Add **"Condition"** action:
 
 **Configure advanced mode:**
 
-```
+```powerautomate
 @and(
   greater(length(body('Get_items')?['value']), 0),
   equals(first(body('Get_items')?['value'])?['IsOpen'], true)
@@ -384,7 +384,7 @@ Add **"Send an email (V2)"** action:
 - Subject: `CRITICAL: Intake Validation Flow Error`
 - Body:
 
-```
+```text
 Flow: TT - Intake Validate
 Run ID: @{variables('vFlowRunId')}
 Transaction ID: @{triggerBody()?['ID']}

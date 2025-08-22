@@ -13,7 +13,7 @@ Automatically populates Description and UOM fields when a technician enters a Pa
 
 **Trigger Condition:**
 
-```
+```powerautomate
 @and(
   equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), ''),
   greater(length(coalesce(triggerBody()?['PartNumber'], '')), 0)
@@ -54,14 +54,14 @@ Skip this flow if:
 3. Click **"Add"**
 4. Paste the trigger condition:
 
-```
+```powerautomate
 @and(
   equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), ''),
   greater(length(coalesce(triggerBody()?['PartNumber'], '')), 0)
 )
 ```
 
-5. Click **"Done"**
+1. Click **"Done"**
 
 **Note:** This ensures the flow only runs when:
 
@@ -95,7 +95,7 @@ Add **"Condition"** action:
 - Click "Edit in advanced mode"
 - Paste:
 
-```
+```powerautomate
 @equals(length(variables('vCurrentDesc')), 0)
 ```
 
@@ -131,7 +131,7 @@ Add **"Condition"** action:
 - Click "Edit in advanced mode"
 - Paste:
 
-```
+```powerautomate
 @greater(length(body('Get_Part_from_Master')?['value']), 0)
 ```
 
@@ -154,7 +154,7 @@ Add **"Update item - SharePoint"** action:
 
 Add another condition before updating to check if UOM is empty:
 
-```
+```powerautomate
 @equals(length(coalesce(triggerBody()?['UOM'], '')), 0)
 ```
 
@@ -168,7 +168,7 @@ Add **"Compose"** action:
 
 **Inputs:**
 
-```
+```json
 {
   "Message": "Part not found in master list",
   "PartNumber": "@{variables('vPartNumber')}",
@@ -194,7 +194,7 @@ Add these to the Update item action in Step 7.
 
 Add validation to ensure the entered UOM matches the part's standard UOM:
 
-```
+```powerautomate
 @if(
   equals(triggerBody()?['UOM'], first(body('Get_Part_from_Master')?['value'])?['UOM']),
   triggerBody()?['UOM'],

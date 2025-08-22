@@ -165,31 +165,31 @@ All flows should use these connection references:
 
 ### Trim and Clean
 
-```
+```powerautomate
 trim(coalesce(triggerBody()?['FieldName'], ''))
 ```
 
 ### Uppercase Conversion
 
-```
+```powerautomate
 toUpper(coalesce(triggerBody()?['TransactionType'], ''))
 ```
 
 ### Numeric Parsing
 
-```
+```powerautomate
 float(coalesce(triggerBody()?['Qty'], 0))
 ```
 
 ### Null Checking
 
-```
+```powerautomate
 equals(length(trim(variables('vPart'))), 0)
 ```
 
 ### Current Timestamp
 
-```
+```text
 utcNow()
 ```
 

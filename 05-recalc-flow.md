@@ -117,7 +117,7 @@ Add **"Compose"** action to calculate date range:
 
 **Inputs:**
 
-```
+```json
 {
   "StartDate": "@{addDays(utcNow(), -90)}",
   "EndDate": "@{utcNow()}",
@@ -177,7 +177,8 @@ Add **"Condition"**: Check if items returned
      "OnHandQty": 0,
      "LastMovementType": "Recalc-Start"
    }
-   ```
+
+```text
 
 2. Add **"Send an HTTP request to SharePoint"** for batch update:
    - Method: POST
@@ -224,8 +225,10 @@ Add **"Get items - SharePoint"** action:
 - Filter Query:
 
 ```
+
 ID gt @{variables('vLastTransactionId')} and PostStatus eq 'Posted' and Created ge '@{addDays(utcNow(), -90)}'
-```
+
+```text
 
 - Top Count: `@{variables('vBatchSize')}`
 - Order By: `ID asc`
@@ -255,8 +258,10 @@ Add **"Compose"** action:
 **Inputs:**
 
 ```
+
 {}
-```
+
+```text
 
 #### Process Transaction Batch
 
@@ -282,8 +287,10 @@ Add **"Compose"** action:
 **Inputs:**
 
 ```
+
 @{item()?['PartNumber']}||@{item()?['Batch']}||@{coalesce(item()?['Location'],'')}||@{item()?['UOM']}
-```
+
+```text
 
 ##### Calculate Delta
 
@@ -294,12 +301,14 @@ Add **"Compose"** action:
 **Inputs:**
 
 ```
+
 @if(
   equals(toUpper(items('Process_Each_Transaction')?['TransactionType']), 'RECEIVE'),
   float(items('Process_Each_Transaction')?['Qty']),
   mul(float(items('Process_Each_Transaction')?['Qty']), -1)
 )
-```
+
+```text
 
 #### 7c. Increment Counter
 
@@ -326,8 +335,10 @@ Add **"Condition"**: Check if checkpoint needed
 1. Check elapsed time:
 
    ```
+
    greater(dateDifference(variables('vStartTime'), utcNow(), 'Minute'), 25)
-   ```
+
+```text
 
 2. If approaching timeout (>25 minutes for 30-min limit):
    - Save aggregation state to SharePoint list
@@ -441,7 +452,7 @@ Add **"Send an email (V2)"** action:
 - Subject: `Inventory Recalc Complete - @{utcNow()}`
 - Body:
 
-```
+```text
 Recalculation Summary:
 - Processed: @{variables('vProcessedCount')} transactions
 - Errors: @{variables('vErrorCount')}
@@ -457,7 +468,7 @@ Recalculation Summary:
 
 Process in weekly chunks:
 
-```
+```text
 vCurrentDate = addDays(utcNow(), -90)
 vEndDate = utcNow()
 
@@ -480,7 +491,7 @@ Split by Part Number ranges:
 
 Only process changes since last successful run:
 
-```
+```text
 LastSuccessfulRun = Get from Recalc Log
 Filter: Modified ge LastSuccessfulRun
 ```
@@ -498,7 +509,7 @@ For resumable processing after timeout:
   "ProcessedCount": 5000,
   "Timestamp": "2024-01-15T02:25:00Z"
 }
-```
+```text
 
 2. **On Next Run:**
 
