@@ -1,11 +1,13 @@
 # Power Automate Error Handling Patterns
 
 ## Overview
+
 This guide provides comprehensive error handling patterns for production-ready Power Automate flows, ensuring resilience, proper logging, and recovery capabilities.
 
 ## Core Error Handling Pattern: Try-Catch-Finally
 
 ### Basic Structure
+
 Every production flow should implement this three-scope pattern:
 
 ```
@@ -33,6 +35,7 @@ Scope: Finally
 Add **"Scope"** action named **"Try - Main Logic"**
 
 Inside this scope:
+
 - Place all main business logic
 - Include validations
 - Include data operations
@@ -44,6 +47,7 @@ Inside this scope:
 Add **"Scope"** action named **"Catch - Error Handling"**
 
 **Configure Run After:**
+
 1. Click three dots → Settings
 2. Configure run after
 3. Check: has failed, is skipped, has timed out
@@ -52,11 +56,13 @@ Add **"Scope"** action named **"Catch - Error Handling"**
 Inside Catch scope, implement these standard actions:
 
 #### 2a. Capture Error Details
+
 Add **"Compose"** action:
 
 **Action Name:** "Capture Error Info"
 
 **Inputs:**
+
 ```
 {
   "ErrorTime": "@{utcNow()}",
@@ -69,9 +75,11 @@ Add **"Compose"** action:
 ```
 
 #### 2b. Log to SharePoint
+
 Add **"Create item - SharePoint"** action:
 
 **Configure:**
+
 - Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
@@ -83,14 +91,17 @@ Add **"Create item - SharePoint"** action:
   - Timestamp: `utcNow()`
 
 #### 2c. Send Alert (Conditional)
+
 Add **"Condition"** action:
 
 **Configure:** Check severity
+
 ```
 @contains(result('Try_-_Main_Logic'), 'Critical')
 ```
 
 **If Yes:**
+
 - Send email to admin
 - Create high-priority ticket
 - Trigger emergency workflow
@@ -100,9 +111,11 @@ Add **"Condition"** action:
 Add **"Scope"** action named **"Finally - Cleanup"**
 
 **Configure Run After:**
+
 1. Check all: is successful, has failed, is skipped, has timed out
 
 Inside Finally scope:
+
 - Release any locks
 - Log performance metrics
 - Clean up temporary data
@@ -112,6 +125,7 @@ Inside Finally scope:
 ### Standard Retry Settings
 
 For all SharePoint actions:
+
 ```json
 {
   "type": "exponential",
@@ -124,6 +138,7 @@ For all SharePoint actions:
 ### Action-Specific Settings
 
 #### Critical Operations (e.g., Inventory Updates)
+
 ```json
 {
   "type": "exponential",
@@ -134,6 +149,7 @@ For all SharePoint actions:
 ```
 
 #### Non-Critical Operations (e.g., Logging)
+
 ```json
 {
   "type": "fixed",
@@ -143,6 +159,7 @@ For all SharePoint actions:
 ```
 
 #### Lock Acquisition (Fail Fast)
+
 ```json
 {
   "type": "none"
@@ -152,6 +169,7 @@ For all SharePoint actions:
 ## Error Categories and Handling
 
 ### 1. Transient Errors (Retry)
+
 - **429 Too Many Requests**
   - Action: Exponential backoff
   - Max retries: 5
@@ -163,6 +181,7 @@ For all SharePoint actions:
   - Max retries: 3
 
 ### 2. Data Errors (Don't Retry)
+
 - **400 Bad Request**
   - Action: Log and notify
   - Update record status
@@ -174,6 +193,7 @@ For all SharePoint actions:
   - Log discrepancy
 
 ### 3. Permission Errors (Alert)
+
 - **401 Unauthorized**
   - Action: Immediate admin alert
   - Check service account
@@ -189,6 +209,7 @@ For all SharePoint actions:
 For operations that modify data:
 
 ### Implementation
+
 ```
 1. Store original state
 2. Perform operation
@@ -200,6 +221,7 @@ For operations that modify data:
 ```
 
 ### Example: Inventory Issue Rollback
+
 ```
 Variables:
 - vOriginalQty: Store before update
@@ -217,6 +239,7 @@ Compensate Scope:
 Prevent cascading failures:
 
 ### Implementation
+
 ```
 Variables:
 - vFailureCount: Integer (0)
@@ -238,43 +261,51 @@ After Failure:
 ### Severity Levels
 
 #### Critical (Immediate Alert)
+
 - Data corruption risk
 - Complete flow failure
 - Security issues
 - Rollback failures
 
 **Actions:**
+
 - Email admin immediately
 - Create P1 ticket
 - SMS/Teams alert
 - Pause related flows
 
 #### High (Alert within 15 min)
+
 - Partial failures
 - Performance degradation
 - Repeated errors
 
 **Actions:**
+
 - Email to support team
 - Create P2 ticket
 - Dashboard update
 
 #### Medium (Batch Alert)
+
 - Single record failures
 - Retry succeeded
 - Non-critical validations
 
 **Actions:**
+
 - Log to list
 - Daily summary email
 - Dashboard metrics
 
 #### Low (Log Only)
+
 - Expected errors
 - User input errors
 - Duplicate attempts
 
 **Actions:**
+
 - Log to list
 - Weekly report
 - No immediate action
@@ -282,6 +313,7 @@ After Failure:
 ## Monitoring and Alerting Rules
 
 ### Alert Aggregation
+
 ```
 Condition: 3+ errors in 5 minutes
 Action: Escalate to Critical
@@ -289,6 +321,7 @@ Reason: Indicates systemic issue
 ```
 
 ### Performance Degradation
+
 ```
 Condition: Execution time > 3x average
 Action: Warning alert
@@ -296,6 +329,7 @@ Reason: Possible throttling or data issue
 ```
 
 ### Failure Rate
+
 ```
 Condition: >10% failure rate in hour
 Action: Pause flow, alert admin
@@ -331,6 +365,7 @@ Reason: Prevent data corruption
 ### Manual Recovery Steps
 
 1. **Identify Scope**
+
    ```
    Query: PostStatus eq 'Error' and Created gt '[Date]'
    Action: Export to Excel for analysis
@@ -342,6 +377,7 @@ Reason: Prevent data corruption
    - Prioritize by impact
 
 3. **Bulk Retry**
+
    ```
    For each error record:
      Reset PostStatus to ''
@@ -356,7 +392,8 @@ Reason: Prevent data corruption
 
 ## Best Practices
 
-### DO:
+### DO
+
 - ✅ Always use Try-Catch-Finally pattern
 - ✅ Set appropriate retry policies
 - ✅ Log all errors with context
@@ -366,7 +403,8 @@ Reason: Prevent data corruption
 - ✅ Document recovery procedures
 - ✅ Use correlation IDs for tracing
 
-### DON'T:
+### DON'T
+
 - ❌ Swallow errors silently
 - ❌ Retry non-idempotent operations
 - ❌ Use generic error messages
@@ -379,12 +417,14 @@ Reason: Prevent data corruption
 ## Performance Impact
 
 ### Error Handling Overhead
+
 - Try-Catch: ~100ms per flow run
 - Logging: ~200ms per error
 - Compensation: ~500ms when triggered
 - Email alerts: ~1000ms per send
 
 ### Optimization Tips
+
 - Batch error logs (every 5 min)
 - Use async patterns for notifications
 - Cache frequently used error data
@@ -417,6 +457,7 @@ Reason: Prevent data corruption
 ## Integration with Azure Monitor
 
 ### Application Insights Integration
+
 ```json
 {
   "action": "Send telemetry",
@@ -434,6 +475,7 @@ Reason: Prevent data corruption
 ```
 
 ### Log Analytics Queries
+
 ```kusto
 // Flows with high error rates
 PowerAutomateErrors

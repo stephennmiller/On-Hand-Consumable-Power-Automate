@@ -7,6 +7,7 @@ This system implements a robust inventory tracking solution using Power Automate
 ## SharePoint Lists Setup
 
 ### 1. Parts List (Master Data)
+
 Create a SharePoint list named **"Parts"** with these columns:
 
 | Column Name | Type | Settings |
@@ -18,6 +19,7 @@ Create a SharePoint list named **"Parts"** with these columns:
 | IsActive | Yes/No | Default: Yes |
 
 ### 2. PO List (Purchase Orders)
+
 Create a SharePoint list named **"PO List"** with these columns:
 
 | Column Name | Type | Settings |
@@ -29,6 +31,7 @@ Create a SharePoint list named **"PO List"** with these columns:
 | IsOpen | Yes/No | Default: Yes |
 
 ### 3. Tech Transactions (Input Form)
+
 Create a SharePoint list named **"Tech Transactions"** with these columns:
 
 | Column Name | Type | Settings |
@@ -46,6 +49,7 @@ Create a SharePoint list named **"Tech Transactions"** with these columns:
 | PostedBy | Person or Group | Hidden from forms |
 
 ### 4. On-Hand Material (Inventory)
+
 Create a SharePoint list named **"On-Hand Material"** with these columns:
 
 | Column Name | Type | Settings |
@@ -61,6 +65,7 @@ Create a SharePoint list named **"On-Hand Material"** with these columns:
 | IsActive | Yes/No | Default: Yes |
 
 ### 5. Flow Error Log (Monitoring)
+
 Create a SharePoint list named **"Flow Error Log"** with these columns:
 
 | Column Name | Type | Settings |
@@ -85,6 +90,7 @@ The solution consists of 5 core Power Automate flows:
 5. **Recalc Flow** - Nightly maintenance job (optional)
 
 ### Required Compound Indexes
+
 For optimal performance, create these compound indexes in SharePoint:
 
 - **Tech Transactions**: PartNumber + PostStatus
@@ -92,6 +98,7 @@ For optimal performance, create these compound indexes in SharePoint:
 - **PO List**: PONumber + IsOpen
 
 ### Connection References
+
 All flows should use these connection references:
 
 - **SharePoint Connection**: Service account with contribute permissions
@@ -100,14 +107,16 @@ All flows should use these connection references:
 
 ## Transaction Processing Model
 
-### Key Concepts:
+### Key Concepts
+
 - **Additive Model**: Each transaction is recorded as a movement
 - **Aggregated Inventory**: On-Hand Material stores one row per Part+Batch+Location
 - **Transaction Math**:
   - RECEIVE: Adds quantity to OnHandQty
   - ISSUE: Subtracts quantity from OnHandQty
 
-### Process Flow:
+### Process Flow
+
 1. Tech creates entry in Tech Transactions
 2. Intake Validation Flow validates the entry
 3. If valid, sets PostStatus = "Validated"
@@ -118,6 +127,7 @@ All flows should use these connection references:
 ## Implementation Order
 
 ### Phase 0: Environment Setup
+
 1. Configure service accounts and permissions
 2. Create all SharePoint lists with proper indexes
 3. Set up Flow Error Log list
@@ -128,21 +138,25 @@ All flows should use these connection references:
    - `ThrottleDelay`: Default 100ms
 
 ### Phase 1: Foundation
+
 1. Import solution with connection references
 2. Build and test Flow 1 (Intake Validation)
 3. Verify error logging works
 
 ### Phase 2: Core Functionality  
+
 1. Build and test Flow 2 (Receive)
 2. Build and test Flow 3 (Issue)
 3. Test with 100+ transactions for performance
 
 ### Phase 3: Enhancements (Optional)
+
 1. Build Flow 4 (Autofill)
 2. Build Flow 5 (Recalc)
 3. Add monitoring dashboard
 
 ### Phase 4: Production Readiness
+
 1. Load test with 1000+ transactions
 2. Implement automated testing flows
 3. Document rollback procedures
@@ -150,33 +164,39 @@ All flows should use these connection references:
 ## Common Power Automate Expressions
 
 ### Trim and Clean
+
 ```
 trim(coalesce(triggerBody()?['FieldName'], ''))
 ```
 
 ### Uppercase Conversion
+
 ```
 toUpper(coalesce(triggerBody()?['TransactionType'], ''))
 ```
 
 ### Numeric Parsing
+
 ```
 float(coalesce(triggerBody()?['Qty'], 0))
 ```
 
 ### Null Checking
+
 ```
 equals(length(trim(variables('vPart'))), 0)
 ```
 
 ### Current Timestamp
+
 ```
 utcNow()
 ```
 
 ## Testing Strategy
 
-### Test Scenarios by Flow:
+### Test Scenarios by Flow
+
 1. **Validation**: Missing fields, invalid PO, zero quantity
 2. **Receive**: New part, existing part, multiple locations
 3. **Issue**: Sufficient stock, insufficient stock, exact depletion
@@ -186,12 +206,14 @@ utcNow()
 ## Best Practices
 
 ### Avoid Infinite Loops
+
 - Use trigger conditions to filter events
 - Check PostStatus before processing
 - Never modify fields that trigger the same flow
 - Set concurrency control to 1 for transaction flows
 
 ### Error Handling
+
 - Implement Try-Catch-Finally pattern in all flows
 - Log all errors to Flow Error Log list
 - Configure retry policies on all SharePoint actions
@@ -199,6 +221,7 @@ utcNow()
 - Use compensating transactions for rollback
 
 ### Performance
+
 - Implement pagination for >100 items
 - Use Select Query to limit returned fields
 - Add 100ms delay between bulk operations
@@ -206,12 +229,14 @@ utcNow()
 - Set appropriate concurrency limits (1-5)
 
 ### Throttling Protection
+
 - SharePoint: 600 calls/minute per user
 - Add exponential backoff retry: PT10S, PT30S, PT90S
 - Use service accounts to increase limits
 - Monitor 429 (throttling) errors
 
 ### Security
+
 - Use app-only authentication for service accounts
 - Implement row-level security on lists
 - Never log sensitive data (PO details, user info)
@@ -219,6 +244,7 @@ utcNow()
 - Regular security audits of permissions
 
 ### Debugging
+
 - Add Compose actions to log intermediate values
 - Test each flow independently before integration
 - Use manual triggers during development
@@ -228,6 +254,7 @@ utcNow()
 ## Monitoring and Alerting
 
 ### Key Metrics to Track
+
 - Flow run success/failure rates
 - Average execution time per flow
 - Error frequency and types
@@ -235,6 +262,7 @@ utcNow()
 - Stock level alerts
 
 ### Alert Thresholds
+
 - 3+ errors in 5 minutes: Email admin
 - Flow execution >3 minutes: Warning
 - 10+ consecutive failures: Critical alert
@@ -243,12 +271,14 @@ utcNow()
 ## Deployment Strategy
 
 ### Solution Packaging
+
 1. Export as managed solution
 2. Include all flows, connections, and environment variables
 3. Document dependencies and prerequisites
 4. Version control in Git
 
 ### Deployment Process
+
 1. Deploy to DEV environment
 2. Run automated tests
 3. Deploy to UAT with limited users
@@ -256,6 +286,7 @@ utcNow()
 5. Deploy to PROD with rollback plan
 
 ### Rollback Procedures
+
 1. Keep previous solution version
 2. Document configuration changes
 3. Have manual process ready

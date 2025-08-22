@@ -1,6 +1,7 @@
 # Power Automate Performance Optimization Guide
 
 ## Overview
+
 This guide addresses performance optimization for Power Automate flows handling high-volume transactions, preventing timeouts, and ensuring scalability.
 
 ## SharePoint List Limits and Solutions
@@ -9,9 +10,10 @@ This guide addresses performance optimization for Power Automate flows handling 
 
 SharePoint lists have a view threshold of 5000 items. Queries returning more will fail.
 
-#### Solutions:
+#### Solutions
 
 1. **Indexed Columns (Required)**
+
 ```
 Tech Transactions:
 - PartNumber (Indexed)
@@ -27,6 +29,7 @@ On-Hand Material:
 ```
 
 2. **Filter First on Indexed Columns**
+
 ```
 ✅ Good: PartNumber eq 'ABC123' and Batch eq 'LOT001'
 ❌ Bad: Description eq 'Some text' and Qty gt 100
@@ -137,12 +140,14 @@ Instead of updating items one by one, use batch requests:
 ```
 
 **Implementation:**
+
 1. Build array of updates
 2. Create batch request JSON
 3. Send single HTTP request
 4. Process batch response
 
 **Benefits:**
+
 - 100x faster than individual updates
 - Single API call for multiple operations
 - Atomic transaction support
@@ -158,7 +163,7 @@ Apply to each:
     Degree of Parallelism: [1-50]
 ```
 
-#### Recommended Settings by Scenario:
+#### Recommended Settings by Scenario
 
 | Scenario | Parallelism | Reason |
 |----------|------------|---------|
@@ -171,6 +176,7 @@ Apply to each:
 ### Prevent Race Conditions
 
 For critical sections:
+
 ```
 Concurrency: 1 (Sequential processing)
 OR
@@ -180,6 +186,7 @@ Implement optimistic locking with version checks
 ## Throttling Management
 
 ### SharePoint Throttling Limits
+
 - **Per User:** 600 requests/minute
 - **Per App:** 60,000 requests/minute
 - **Response:** 429 Too Many Requests
@@ -187,6 +194,7 @@ Implement optimistic locking with version checks
 ### Throttling Prevention Strategies
 
 #### 1. Add Strategic Delays
+
 ```
 After each operation:
   Delay:
@@ -200,6 +208,7 @@ After batch of 10:
 ```
 
 #### 2. Implement Exponential Backoff
+
 ```
 Retry Policy:
   Type: Exponential
@@ -209,6 +218,7 @@ Retry Policy:
 ```
 
 #### 3. Distribute Load
+
 ```
 Schedule flows at different times:
 - Flow A: Runs at :00
@@ -220,12 +230,14 @@ Schedule flows at different times:
 ## Timeout Prevention
 
 ### Flow Timeout Limits
+
 - **Standard:** 30 days total, 5 minutes per action
 - **Premium:** 30 days total, 2 hours per action
 
 ### Strategies for Long-Running Operations
 
 #### 1. Child Flow Pattern
+
 ```
 Parent Flow:
   Get all items to process
@@ -238,6 +250,7 @@ Child Flow:
 ```
 
 #### 2. Continuation Token Pattern
+
 ```
 Variables:
 - vContinuationToken: String
@@ -254,6 +267,7 @@ Do Until vIsComplete:
 ```
 
 #### 3. Queue-Based Processing
+
 ```
 Flow 1: Queue Builder
   Get items to process
@@ -272,6 +286,7 @@ Flow 3: Queue Monitor
 ## Query Optimization
 
 ### Use Select Query
+
 Reduce data transfer by selecting only needed fields:
 
 ```
@@ -281,6 +296,7 @@ Get items:
 ```
 
 ### Use Filter Query Effectively
+
 ```
 ✅ Optimal:
 PartNumber eq 'ABC' and PostStatus eq 'Validated' and Created gt '2024-01-01'
@@ -290,6 +306,7 @@ PostStatus eq 'Validated' // Then filter in Flow
 ```
 
 ### Use Order By Strategically
+
 ```
 Order By: Created desc
 // Gets newest first, useful for recent data processing
@@ -298,6 +315,7 @@ Order By: Created desc
 ## Caching Strategies
 
 ### 1. Variable Caching
+
 ```
 Variables:
 - vPartsCache: Object
@@ -310,6 +328,7 @@ If not contains(vPartsCache, PartNumber):
 ```
 
 ### 2. Daily Cache List
+
 ```
 Flow: Daily Cache Builder (runs at midnight)
   Get all Parts
@@ -322,6 +341,7 @@ Main Flows:
 ```
 
 ### 3. Compose Action Caching
+
 ```
 Compose: Build lookup table
 {
@@ -354,6 +374,7 @@ Log to Performance Tracking list
 ```
 
 ### Key Metrics to Track
+
 - Execution time per record
 - Queue depth
 - Error rate
@@ -363,6 +384,7 @@ Log to Performance Tracking list
 ## Optimization Checklist
 
 ### Before Deployment
+
 - [ ] All SharePoint columns indexed
 - [ ] Pagination implemented for >100 items
 - [ ] Retry policies configured
@@ -373,6 +395,7 @@ Log to Performance Tracking list
 - [ ] Throttle protection delays added
 
 ### During Testing
+
 - [ ] Test with 10x expected volume
 - [ ] Monitor execution times
 - [ ] Check for 429 errors
@@ -382,6 +405,7 @@ Log to Performance Tracking list
 - [ ] Check memory usage
 
 ### After Deployment
+
 - [ ] Monitor performance dashboard
 - [ ] Review error logs weekly
 - [ ] Optimize slow queries
@@ -392,35 +416,45 @@ Log to Performance Tracking list
 ## Common Performance Issues and Solutions
 
 ### Issue 1: Flow Times Out
+
 **Solution:**
+
 - Implement pagination
 - Use child flows
 - Add continuation token
 - Reduce batch size
 
 ### Issue 2: SharePoint Throttling
+
 **Solution:**
+
 - Add delays between operations
 - Reduce concurrency
 - Use service account
 - Implement exponential backoff
 
 ### Issue 3: Slow Queries
+
 **Solution:**
+
 - Add indexes
 - Use Select Query
 - Filter on indexed columns first
 - Reduce result set size
 
 ### Issue 4: Memory Errors
+
 **Solution:**
+
 - Process in smaller batches
 - Clear variables after use
 - Avoid storing large arrays
 - Use streaming where possible
 
 ### Issue 5: Concurrent Update Conflicts
+
 **Solution:**
+
 - Set concurrency to 1
 - Implement optimistic locking
 - Use queue-based processing
@@ -429,6 +463,7 @@ Log to Performance Tracking list
 ## Advanced Techniques
 
 ### 1. Parallel Branch Processing
+
 ```
 Parallel Branch 1: Process Part A items
 Parallel Branch 2: Process Part B items
@@ -439,6 +474,7 @@ Consolidate results
 ```
 
 ### 2. Lazy Loading Pattern
+
 ```
 Get minimal data first
 Only fetch details when needed
@@ -446,6 +482,7 @@ Cache fetched details
 ```
 
 ### 3. Pre-aggregation
+
 ```
 Nightly Job:
   Calculate daily totals
@@ -457,6 +494,7 @@ Daily Flows:
 ```
 
 ### 4. Smart Scheduling
+
 ```
 Heavy flows: Run during off-hours
 Light flows: Run during business hours
@@ -467,17 +505,20 @@ Use trigger conditions to skip when not needed
 ## Recommended Architecture for Scale
 
 ### For <1000 transactions/day
+
 - Simple flows with basic error handling
 - Direct SharePoint operations
 - Standard retry policies
 
 ### For 1000-10,000 transactions/day
+
 - Implement pagination
 - Add caching layer
 - Use batch operations
 - Monitor performance
 
 ### For >10,000 transactions/day
+
 - Queue-based architecture
 - Multiple processor flows
 - Dedicated service accounts
@@ -487,6 +528,7 @@ Use trigger conditions to skip when not needed
 ## Testing Performance
 
 ### Load Testing Script
+
 ```javascript
 // Generate test data
 for(i = 0; i < 1000; i++) {
@@ -504,6 +546,7 @@ Calculate: Records/Second
 ```
 
 ### Stress Testing Scenarios
+
 1. Burst load: 1000 records in 1 minute
 2. Sustained load: 100 records/minute for 1 hour
 3. Peak load: 5000 records in 10 minutes
