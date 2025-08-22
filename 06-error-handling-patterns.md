@@ -92,12 +92,29 @@ Add **"Create item - SharePoint"** action:
 
 #### 2c. Send Alert (Conditional)
 
+Add **"Initialize variable"** action for severity:
+
+**Name:** vSeverity
+**Type:** String
+**Value:**
+```powerautomate
+@if(
+  contains(coalesce(result('Try_-_Main_Logic')?['error']?['message'], ''), 'timeout'),
+  'High',
+  if(
+    contains(coalesce(result('Try_-_Main_Logic')?['error']?['message'], ''), 'throttl'),
+    'Medium',
+    'Critical'
+  )
+)
+```
+
 Add **"Condition"** action:
 
 **Configure:** Check severity
 
 ```powerautomate
-@contains(join(select(result('Try_-_Main_Logic'), '?[''error'']?[''message'']'), ', '), 'Critical')
+@equals(variables('vSeverity'), 'Critical')
 ```
 
 **If Yes:**
@@ -364,7 +381,7 @@ Reason: Prevent data corruption
 
 1. **Identify Scope**
 
-   ```
+   ```powerautomate
    Query: PostStatus eq 'Error' and Created gt '[Date]'
    Action: Export to Excel for analysis
    ```
@@ -376,7 +393,7 @@ Reason: Prevent data corruption
 
 3. **Bulk Retry**
 
-   ```
+   ```powerautomate
    For each error record:
      Reset PostStatus to ''
      Clear PostMessage
@@ -462,7 +479,7 @@ Reason: Prevent data corruption
   "properties": {
     "EventName": "FlowError",
     "FlowName": "@{workflow()?['name']}",
-    "ErrorType": "@{string(result('Try_-_Main_Logic'))}",
+    "ErrorType": "@{coalesce(result('Try_-_Main_Logic')?['error']?['code'], 'UnknownError')}",
     "Severity": "Error",
     "CustomDimensions": {
       "RunId": "@{workflow()?['run']?['name']}",

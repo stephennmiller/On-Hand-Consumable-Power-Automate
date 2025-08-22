@@ -177,8 +177,7 @@ Add **"Condition"**: Check if items returned
      "OnHandQty": 0,
      "LastMovementType": "Recalc-Start"
    }
-
-```
+   ```
 
 2. Add **"Send an HTTP request to SharePoint"** for batch update:
    - Method: POST
@@ -231,10 +230,8 @@ Add **"Get items - SharePoint"** action:
 - List Name: Tech Transactions
 - Filter Query:
 
-```
-
-ID gt @{variables('vLastTransactionId')} and PostStatus eq 'Posted' and Created ge '@{addDays(utcNow(), -90)}'
-
+```powerautomate
+ID gt @{variables('vLastTransactionId')} and PostStatus eq 'Posted' and Created ge '@{formatDateTime(addDays(utcNow(), -90), 'yyyy-MM-ddTHH:mm:ssZ')}'
 ```
 
 - Top Count: `@{variables('vBatchSize')}`
@@ -264,10 +261,8 @@ Add **"Compose"** action:
 
 **Inputs:**
 
-```
-
+```json
 {}
-
 ```
 
 #### Process Transaction Batch
@@ -292,10 +287,8 @@ Add **"Compose"** action:
 
 **Inputs:**
 
-```
-
+```powerautomate
 @{item()?['PartNumber']}||@{item()?['Batch']}||@{coalesce(item()?['Location'],'')}||@{item()?['UOM']}
-
 ```
 
 ##### Calculate Delta
@@ -306,25 +299,29 @@ Add **"Compose"** action:
 
 **Inputs:**
 
-```
-
+```powerautomate
 @if(
-  equals(toUpper(items('Process_Each_Transaction')?['TransactionType']), 'RECEIVE'),
-  float(items('Process_Each_Transaction')?['Qty']),
-  mul(float(items('Process_Each_Transaction')?['Qty']), -1)
+  equals(toUpper(item()?['TransactionType']), 'RECEIVE'),
+  float(item()?['Qty']),
+  mul(float(item()?['Qty']), -1)
 )
-
 ```
 
 ##### Update Aggregations
 
-Add **"Set variable"** action:
+Add **"Compose"** action to update aggregations:
+
+**Action Name:** "Update Aggregations"
+
+**Inputs:**
+```json
+@{addProperty(variables('vAggregations'), outputs('Build_Key'), add(coalesce(variables('vAggregations')?[outputs('Build_Key')], 0), outputs('Calculate_Movement_Delta')))}
+```
+
+Then add **"Set variable"** action:
 
 **Name:** vAggregations
-**Value:** 
-```json
-@{setProperty(variables('vAggregations'), outputs('Build_Key'), add(coalesce(variables('vAggregations')?[outputs('Build_Key')], 0), outputs('Calculate_Movement_Delta')))}
-```
+**Value:** `@{outputs('Update_Aggregations')}`
 
 ##### Increment Counter
 
@@ -335,7 +332,9 @@ Add **"Increment variable"** action:
 
 #### Checkpoint and Continue Pattern
 
-Add **"Increment variable"** action:
+After the "Apply to each" loop (outside of it), add:
+
+**"Increment variable"** action:
 
 - Name: vCheckpointCounter
 - Value: 1
@@ -350,11 +349,9 @@ Add **"Condition"**: Check if checkpoint needed
 
 1. Check elapsed time:
 
-   ```
-
+   ```powerautomate
    greater(div(sub(ticks(utcNow()), ticks(variables('vStartTime'))), 600000000), 25)
-
-```
+   ```
 
 2. If approaching timeout (>25 minutes for 30-min limit):
    - Save aggregation state to SharePoint list
@@ -388,10 +385,11 @@ Inside loop:
      ```json
      {
        "Content-Type": "multipart/mixed; boundary=batch_boundary",
-       "Accept": "application/json",
-       "X-RequestDigest": "@{body('Send_an_HTTP_request_to_SharePoint_-_Get_Request_Digest')?['d']?['GetContextWebInformation']?['FormDigestValue']}"
+       "Accept": "application/json"
      }
      ```
+
+   **Note:** The batch API uses multipart/mixed format. Construct the body with proper boundaries following SharePoint batch API documentation.
 
    - Body: Batch operations
 
@@ -421,7 +419,7 @@ Add **"Create item - SharePoint"** action:
 - List Name: Flow Error Log
 - Fields:
   - FlowName: `OH - Nightly Recalc`
-  - ErrorMessage: `Recalc failed: @{string(result('Try_-_Recalc_Process'))}`
+  - ErrorMessage: `Recalc failed: @{coalesce(result('Try_-_Recalc_Process')?['error']?['message'], 'Unknown error')}`
   - Severity: `Critical`
   - Timestamp: `utcNow()`
 
@@ -469,11 +467,11 @@ Add **"Send an email (V2)"** action:
 - Subject: `Inventory Recalc Complete - @{utcNow()}`
 - Body:
 
-```
+```text
 Recalculation Summary:
 - Processed: @{variables('vProcessedCount')} transactions
 - Errors: @{variables('vErrorCount')}
-- Duration: [calculated duration] seconds
+- Duration: @{div(sub(ticks(utcNow()), ticks(variables('vStartTime'))), 10000000)} seconds
 - Time: @{variables('vStartTime')} to @{utcNow()}
 ```
 
@@ -485,7 +483,7 @@ Recalculation Summary:
 
 Process in weekly chunks:
 
-```
+```powerautomate
 vCurrentDate = addDays(utcNow(), -90)
 vEndDate = utcNow()
 
@@ -500,7 +498,7 @@ While vCurrentDate < vEndDate:
 Split by Part Number ranges:
 
 - Flow Instance 1: PartNumber A-H
-- Flow Instance 2: PartNumber I-P  
+- Flow Instance 2: PartNumber I-P
 - Flow Instance 3: PartNumber Q-Z
 - Flow Instance 4: Numeric part numbers
 
@@ -508,7 +506,7 @@ Split by Part Number ranges:
 
 Only process changes since last successful run:
 
-```
+```powerautomate
 LastSuccessfulRun = Get from Recalc Log
 Filter: Modified ge LastSuccessfulRun
 ```
@@ -560,7 +558,11 @@ Use JSON batching for updates:
     {
       "method": "PATCH",
       "url": "lists/getbytitle('On-Hand Material')/items(1)",
-      "body": { "OnHandQty": 100 }
+      "body": { "OnHandQty": 100 },
+      "headers": {
+        "IF-MATCH": "*",
+        "Content-Type": "application/json;odata=verbose"
+      }
     }
   ]
 }
@@ -612,7 +614,7 @@ Use JSON batching for updates:
 - [ ] Run again to test resume
 - [ ] Verify final accuracy
 
-#### Test Case 4: Concurrent Modification Test  
+#### Test Case 4: Concurrent Modification Test
 
 - [ ] Start recalc
 - [ ] Create new transactions during run

@@ -15,8 +15,8 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 
 ```powerautomate
 @and(
-  equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
-  equals(toUpper(triggerOutputs()?['body/TransactionType']), 'RECEIVE')
+  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
+  equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RECEIVE')
 )
 ```
 
@@ -125,7 +125,7 @@ This prevents SharePoint throttling when processing multiple transactions.
 
 Add **"Get items - SharePoint"** action:
 
-**Action Name:** "Get On-Hand for Part+Batch"
+**Action Name:** "Get On-Hand for Part+Batch (Single Record)"
 
 **Configure:**
 
@@ -144,7 +144,7 @@ Add **"Get items - SharePoint"** action:
 ```
 
 - Top Count: 1
-- **Select Query:** `ID,OnHandQty,PartNumber,Batch,UOM,Location`
+- **Select Query:** `ID,Title,OnHandQty,PartNumber,Batch,UOM,Location`
 - **Order By:** `Modified desc`
 - **Settings:**
   - Retry Policy: Fixed Interval
@@ -229,9 +229,11 @@ Add **"Condition"** action:
 
 **Condition:** `@equals(outputs('Update_Existing_On-Hand_with_ETag')['statusCode'], 412)`
 
-**If Yes (Conflict):**
+**If Yes (Conflict - Last Writer Wins):**
 - Add a **"Delay"** action: 2 seconds
-- Add **"Terminate"** action with Status: Failed and Message: "Concurrency conflict - please retry"
+- Add **"Get items - SharePoint"** to fetch latest values
+- Recalculate and update with new quantity
+- Consider logging conflict for audit
 
 **If No (Other Error):**
 - Add **"Terminate"** action with Status: Failed and Message: `@{body('Update_Existing_On-Hand_with_ETag')}`
@@ -250,7 +252,7 @@ In the **No** branch, add **"Create item - SharePoint"** action:
   - PartNumber: `@{variables('vPart')}`
   - Batch: `@{variables('vBatch')}`
   - UOM: `@{variables('vUOM')}`
-  - Location: `@{variables('vLoc')}`
+  - Location: `@{if(greater(length(variables('vLoc')), 0), variables('vLoc'), null)}`
   - OnHandQty: `@{variables('vQty')}`
   - LastMovementAt: `utcNow()`
   - LastMovementType: `Receive`

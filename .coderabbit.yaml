@@ -54,7 +54,7 @@ reviews:
     - "!**/node_modules/**"
     - "!**/dist/**"
     - "!**/build/**"
-  
+
   # GitHub checks configuration
   github_checks:
     # Extend timeout for large documentation reviews

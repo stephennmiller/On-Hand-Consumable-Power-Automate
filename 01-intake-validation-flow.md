@@ -321,7 +321,7 @@ Add **"Update item - SharePoint"** action (at the end of Try scope):
 - Id: `triggerBody()?['ID']`
 - Fields:
   - PostStatus: `Validated`
-  - PostMessage: ` ` (empty)
+  - PostMessage: `` (empty string)
   - PostedAt: `utcNow()`
 - **Settings:**
   - Retry Policy: Fixed Interval
