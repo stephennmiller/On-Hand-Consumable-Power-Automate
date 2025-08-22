@@ -8,6 +8,11 @@ reviews:
     enabled: true
     # Review drafts to catch issues early
     drafts: true
+    # Review on all base branches
+    base_branches:
+      - main
+      - master
+      - power-automate-docs
 
   # High-level review instructions  
   high_level_summary: true
