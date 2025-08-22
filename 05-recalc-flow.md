@@ -10,6 +10,13 @@ Nightly job that rebuilds On-Hand inventory from transaction history to prevent 
 **Trigger:** Recurrence Schedule  
 **Frequency:** Daily at 2:00 AM (or preferred off-peak time)
 
+**Flow Settings:**
+- **Timeout:** PT2H (2 hours for Premium, 30 min for Standard)
+- **Retry Policy:** Do not retry (scheduled will run next day)
+- **Concurrency:** Not applicable (scheduled flow)
+
+**Important:** This flow requires Premium connectors for >30 minute execution
+
 ## When to Implement This Flow
 
 This flow is **OPTIONAL but HIGHLY RECOMMENDED** if:
@@ -33,10 +40,19 @@ Consider skipping if:
 4. Set schedule:
    - Starting: Tomorrow at 2:00 AM
    - Repeat every: 1 Day
+   - Time zone: Your local timezone
 5. Click **"Create"**
+6. **Advanced Options:**
+   - Run only when: Weekdays (optional)
+   - Catch up on missed runs: No
 
-### Step 2: Initialize Variables
-Add these **"Initialize variable"** actions:
+### Step 2: Add Master Try-Catch
+Add **"Scope"** action named **"Try - Recalc Process"**
+
+All subsequent steps go inside this scope.
+
+### Step 3: Initialize Variables
+Inside the Try scope, add these **"Initialize variable"** actions:
 
 #### Variable 1: vProcessedCount
 - **Name:** vProcessedCount
@@ -53,6 +69,31 @@ Add these **"Initialize variable"** actions:
 - **Type:** String
 - **Value:** `utcNow()`
 
+#### Variable 4: vBatchSize
+- **Name:** vBatchSize
+- **Type:** Integer
+- **Value:** `1000` (adjust based on volume)
+
+#### Variable 5: vLastTransactionId
+- **Name:** vLastTransactionId
+- **Type:** Integer
+- **Value:** `0`
+
+#### Variable 6: vHasMoreTransactions
+- **Name:** vHasMoreTransactions
+- **Type:** Boolean
+- **Value:** `true`
+
+#### Variable 7: vAggregations
+- **Name:** vAggregations
+- **Type:** Object
+- **Value:** `{}`
+
+#### Variable 8: vCheckpointCounter
+- **Name:** vCheckpointCounter
+- **Type:** Integer
+- **Value:** `0`
+
 ### Step 3: Get Date Range (Optional)
 Add **"Compose"** action to calculate date range:
 
@@ -67,30 +108,61 @@ Add **"Compose"** action to calculate date range:
 }
 ```
 
-### Step 4: Clear or Mark Existing On-Hand
-Choose one approach:
+### Step 4: Implement Pagination for On-Hand Reset
 
-#### Option A: Soft Reset (Recommended)
+#### Initialize Pagination Variables
+Add **"Initialize variable"** actions:
+- **vOnHandLastId:** Integer (0)
+- **vOnHandBatchComplete:** Boolean (false)
+
+#### Paginated Reset Loop
+Add **"Do until"** control:
+
+**Condition:** `@equals(variables('vOnHandBatchComplete'), true)`
+
+Inside the Do until:
+
+##### Get Batch of On-Hand Records
 Add **"Get items - SharePoint"** action:
 
-**Action Name:** "Get All On-Hand Records"
+**Action Name:** "Get On-Hand Batch"
 
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: On-Hand Material
-- Filter Query: `IsActive eq true`
-- Top Count: 5000
+- Filter Query: `ID gt @{variables('vOnHandLastId')} and IsActive eq true`
+- Top Count: 100
+- Order By: `ID asc`
+- Select Query: `ID,PartNumber,Batch,Location,UOM`
 
-Then add **"Apply to each"** control:
+##### Process Batch
+Add **"Condition"**: Check if items returned
+- Left: `length(body('Get_On-Hand_Batch')?['value'])`
+- Operand: greater than
+- Right: 0
 
-**Action Name:** "Mark All as Pending Recalc"
+**If Yes:**
+1. Add **"Select"** action to build batch update:
+   - From: `body('Get_On-Hand_Batch')?['value']`
+   - Map:
+   ```json
+   {
+     "id": @{item()?['ID']},
+     "OnHandQty": 0,
+     "LastMovementType": "Recalc-Start"
+   }
+   ```
 
-**Select output:** `body('Get_All_On-Hand_Records')?['value']`
+2. Add **"Send an HTTP request to SharePoint"** for batch update:
+   - Method: POST
+   - Uri: `_api/$batch`
+   - Body: Construct batch request with all updates
 
-Inside the loop, add **"Update item - SharePoint"**:
-- Id: `items('Mark_All_as_Pending_Recalc')?['ID']`
-- OnHandQty: `0`
-- LastMovementType: `Recalc-Pending`
+3. Update vOnHandLastId:
+   - Value: `last(body('Get_On-Hand_Batch')?['value'])?['ID']`
+
+**If No:**
+- Set vOnHandBatchComplete = true
 
 #### Option B: Hard Reset (Risky)
 **WARNING:** Only use if you're certain about data recovery
@@ -99,22 +171,45 @@ Add **"Send an HTTP request to SharePoint"** to batch delete:
 - Method: POST
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items`
 
-### Step 5: Get All Transactions
+### Step 5: Process Transactions with Pagination
+
+Add **"Do until"** control:
+
+**Condition:** `@equals(variables('vHasMoreTransactions'), false)`
+
+**Timeout:** PT1H30M (1.5 hours)
+**Count:** 1000 (max iterations)
+
+Inside the Do until:
+
+#### Get Transaction Batch
 Add **"Get items - SharePoint"** action:
 
-**Action Name:** "Get Tech Transactions for Recalc"
+**Action Name:** "Get Transaction Batch"
 
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Filter Query: 
 ```
-PostStatus eq 'Posted' and Created ge '@{addDays(utcNow(), -90)}'
+ID gt @{variables('vLastTransactionId')} and PostStatus eq 'Posted' and Created ge '@{addDays(utcNow(), -90)}'
 ```
-- Top Count: 5000
-- Order By: `Created asc`
+- Top Count: `@{variables('vBatchSize')}`
+- Order By: `ID asc`
+- Select Query: `ID,PartNumber,Batch,Location,UOM,Qty,TransactionType`
+- **Settings:**
+  - Retry Policy: Fixed
+  - Count: 3
+  - Interval: PT10S
 
-**Note:** If you have >5000 transactions, implement pagination (see Advanced section).
+#### Check for More Data
+Add **"Condition"**:
+- Left: `length(body('Get_Transaction_Batch')?['value'])`
+- Operand: less than
+- Right: `@{variables('vBatchSize')}`
+
+**If Yes:** Set vHasMoreTransactions = false
+**If No:** Update vLastTransactionId = `last(body('Get_Transaction_Batch')?['value'])?['ID']`
 
 ### Step 6: Initialize Aggregation Object
 Add **"Compose"** action:
@@ -126,26 +221,30 @@ Add **"Compose"** action:
 {}
 ```
 
-### Step 7: Process Each Transaction
+#### Process Transaction Batch
 Add **"Apply to each"** control:
 
-**Action Name:** "Process Each Transaction"
+**Action Name:** "Process Transaction Batch"
 
-**Select output:** `body('Get_Tech_Transactions_for_Recalc')?['value']`
+**Select output:** `body('Get_Transaction_Batch')?['value']`
 
-Inside the loop, add these actions:
+**Settings:**
+- Concurrency: On
+- Degree of Parallelism: 20
 
-#### 7a. Build Aggregation Key
+Inside the loop:
+
+##### Build Aggregation Key
 Add **"Compose"** action:
 
 **Action Name:** "Build Key"
 
 **Inputs:**
 ```
-@{items('Process_Each_Transaction')?['PartNumber']}||@{items('Process_Each_Transaction')?['Batch']}||@{coalesce(items('Process_Each_Transaction')?['Location'],'')}||@{items('Process_Each_Transaction')?['UOM']}
+@{item()?['PartNumber']}||@{item()?['Batch']}||@{coalesce(item()?['Location'],'')}||@{item()?['UOM']}
 ```
 
-#### 7b. Calculate Delta
+##### Calculate Delta
 Add **"Compose"** action:
 
 **Action Name:** "Calculate Movement Delta"
@@ -164,44 +263,111 @@ Add **"Increment variable"** action:
 - Name: vProcessedCount
 - Value: 1
 
-### Step 8: Write Aggregated Results
-After the Apply to each loop, add another **"Apply to each"** for unique Part+Batch combinations:
+#### Checkpoint and Continue Pattern
+Add **"Increment variable"** action:
+- Name: vCheckpointCounter
+- Value: 1
 
-**Note:** This is complex in Power Automate. Consider these alternatives:
+Add **"Condition"**: Check if checkpoint needed
+- Left: `mod(variables('vCheckpointCounter'), 10)`
+- Operand: equals
+- Right: 0
 
-#### Alternative 1: Use Power Automate Desktop
-Export to Excel, aggregate, then import back.
+**If Yes (Every 10 batches):**
+1. Check elapsed time:
+   ```
+   greater(dateDifference(variables('vStartTime'), utcNow(), 'Minute'), 25)
+   ```
+   
+2. If approaching timeout (>25 minutes for 30-min limit):
+   - Save aggregation state to SharePoint list
+   - Log checkpoint
+   - Terminate gracefully
+   - Next run will resume from checkpoint
 
-#### Alternative 2: Group in SharePoint
-Create a separate "Recalc Temp" list to store intermediate results.
+### Step 6: Write Aggregated Results
 
-#### Alternative 3: Simplified Approach
-For each transaction, immediately update On-Hand:
+After processing all transactions:
 
-Add **"Get items - SharePoint"** inside the loop:
-- Filter Query: Use the key from Step 7a
-- Top Count: 1
+#### Option 1: Batch Update Pattern (Recommended)
 
-Then **"Condition"**: Check if exists
-- If Yes: Update with new calculated value
-- If No: Create new record
+Add **"Select"** action to transform aggregations:
+- From: `variables('vAggregations')`
+- Map to update operations
 
-### Step 9: Generate Summary Report
+Add **"Compose"** to create batch size chunks (100 items each)
+
+Add **"Apply to each"** for each chunk:
+
+Inside loop:
+1. Build batch request JSON
+2. **Send an HTTP request to SharePoint**:
+   - Method: POST
+   - Uri: `_api/$batch`
+   - Headers:
+     ```json
+     {
+       "Content-Type": "multipart/mixed; boundary=batch_boundary",
+       "Accept": "application/json"
+     }
+     ```
+   - Body: Batch operations
+
+#### Option 2: Direct Update Pattern (Simpler but Slower)
+
+For each aggregation key:
+1. Parse key to get Part, Batch, Location, UOM
+2. Get existing On-Hand record
+3. Update or Create with calculated quantity
+
+### Step 7: Error Handling Scope
+
+Add **"Scope"** action named **"Catch - Handle Errors"**
+
+**Configure Run After:**
+- Has failed, is skipped, has timed out
+
+Inside Catch scope:
+
+#### Log Error
+Add **"Create item - SharePoint"** action:
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: Flow Error Log
+- Fields:
+  - FlowName: `OH - Nightly Recalc`
+  - ErrorMessage: `Recalc failed: @{result('Try_-_Recalc_Process')}`
+  - Severity: `Critical`
+  - Timestamp: `utcNow()`
+
+#### Send Alert
+Add **"Send an email (V2)"** action:
+- To: `@{parameters('AdminEmail')}`
+- Subject: `CRITICAL: Nightly Recalc Failed`
+- Body: Include error details and impact assessment
+
+### Step 8: Finally - Generate Report
+
+Add **"Scope"** action named **"Finally - Summary Report"**
+
+**Configure Run After:** All conditions
+
+Inside Finally scope:
+
+#### Generate Summary
 Add **"Create item - SharePoint"** action:
 
 **Action Name:** "Log Recalc Summary"
 
-Create a "Recalc Log" list with these fields, then:
-
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: Recalc Log
 - Fields:
   - RunDate: `@{variables('vStartTime')}`
   - ProcessedCount: `@{variables('vProcessedCount')}`
   - ErrorCount: `@{variables('vErrorCount')}`
-  - Duration: `@{div(sub(ticks(utcNow()), ticks(variables('vStartTime'))), 10000000)}` (seconds)
-  - Status: `Completed`
+  - Duration: `@{dateDifference(variables('vStartTime'), utcNow(), 'Second')}` seconds
+  - Status: `@{if(greater(variables('vErrorCount'), 0), 'Completed with Errors', 'Success')}`
+  - BatchesProcessed: `@{variables('vCheckpointCounter')}`
 
 ### Step 10: Send Notification (Optional)
 Add **"Send an email (V2)"** action:
@@ -218,25 +384,59 @@ Recalculation Summary:
 - Time: @{variables('vStartTime')} to @{utcNow()}
 ```
 
-## Advanced Configuration
+## Performance Optimization Strategies
 
-### Handling Large Datasets (>5000 items)
+### For Large Datasets (>50,000 transactions)
 
-#### Pagination Implementation:
-1. Add variable `vSkipCount` (Integer, default 0)
-2. Add Do Until loop:
-   - Condition: `length(body('Get_items')?['value']) lt 5000`
-3. Inside loop:
-   - Get items with `$skip=@{variables('vSkipCount')}`
-   - Process items
-   - Increment vSkipCount by 5000
-
-### Incremental Recalc
-Instead of full rebuild, only process recent changes:
-
+#### Strategy 1: Date-Based Chunking
+Process in weekly chunks:
 ```
-Created ge '@{addDays(utcNow(), -7)}' or Modified ge '@{addDays(utcNow(), -7)}'
+vCurrentDate = addDays(utcNow(), -90)
+vEndDate = utcNow()
+
+While vCurrentDate < vEndDate:
+  vChunkEnd = addDays(vCurrentDate, 7)
+  Process transactions between vCurrentDate and vChunkEnd
+  vCurrentDate = vChunkEnd
 ```
+
+#### Strategy 2: Parallel Processing
+Split by Part Number ranges:
+- Flow Instance 1: PartNumber A-H
+- Flow Instance 2: PartNumber I-P  
+- Flow Instance 3: PartNumber Q-Z
+- Flow Instance 4: Numeric part numbers
+
+#### Strategy 3: Incremental Recalc
+Only process changes since last successful run:
+```
+LastSuccessfulRun = Get from Recalc Log
+Filter: Modified ge LastSuccessfulRun
+```
+
+### Checkpoint Recovery Pattern
+
+For resumable processing after timeout:
+
+1. **Save State Before Timeout:**
+```json
+{
+  "LastProcessedId": 12345,
+  "AggregationState": {...},
+  "ProcessedCount": 5000,
+  "Timestamp": "2024-01-15T02:25:00Z"
+}
+```
+
+2. **On Next Run:**
+- Check for incomplete run
+- Load saved state
+- Resume from LastProcessedId
+- Merge with new aggregations
+
+3. **Cleanup After Success:**
+- Clear checkpoint data
+- Archive old checkpoints
 
 ### Error Handling
 Add **"Configure run after"** on critical steps:
@@ -266,11 +466,21 @@ Use JSON batching for updates:
 
 ## Testing Strategy
 
-### Test Case 1: Small Dataset
+### Pre-Production Testing
+
+#### Test Case 1: Small Dataset (Smoke Test)
 - [ ] Create 10 transactions (mix of Issue/Receive)
-- [ ] Note current On-Hand values
+- [ ] Note current On-Hand values  
 - [ ] Run recalc manually
 - [ ] Verify On-Hand matches expected
+- [ ] Check execution time <1 minute
+
+#### Test Case 2: Pagination Test
+- [ ] Create 2000+ transactions
+- [ ] Run recalc
+- [ ] Verify pagination works
+- [ ] Check no items missed
+- [ ] Verify memory usage stable
 
 ### Test Case 2: Data Correction
 - [ ] Manually edit On-Hand to wrong value
@@ -282,10 +492,19 @@ Use JSON batching for updates:
 - [ ] Run recalc
 - [ ] Verify record recreated with correct qty
 
-### Test Case 4: Performance Test
-- [ ] Create 100+ transactions
-- [ ] Time the recalc execution
-- [ ] Check for timeout issues
+#### Test Case 3: Timeout Simulation
+- [ ] Create 10,000+ transactions
+- [ ] Set timeout to 5 minutes (test)
+- [ ] Run recalc
+- [ ] Verify checkpoint saves
+- [ ] Run again to test resume
+- [ ] Verify final accuracy
+
+#### Test Case 4: Concurrent Modification Test  
+- [ ] Start recalc
+- [ ] Create new transactions during run
+- [ ] Verify new transactions handled correctly
+- [ ] Check for lock conflicts
 
 ## Monitoring & Maintenance
 
@@ -314,9 +533,11 @@ Monthly tasks:
 ### Common Issues:
 
 1. **Timeout on large datasets**
-   - Reduce date range (30 days instead of 90)
-   - Implement pagination
-   - Run multiple times per day
+   - Solution 1: Implement checkpoint/resume pattern
+   - Solution 2: Reduce batch size to 500
+   - Solution 3: Process in date chunks
+   - Solution 4: Use Premium connector for 2-hour timeout
+   - Solution 5: Split into multiple scheduled flows
 
 2. **Memory/throttling errors**
    - Reduce concurrency
@@ -336,10 +557,19 @@ Monthly tasks:
 ## Decision Points
 
 ### Frequency Options:
-- **Nightly**: Standard for most systems
-- **Hourly**: High-volume or critical accuracy
-- **Weekly**: Low-volume, stable systems
-- **On-demand**: Manual trigger only
+- **Every 4 hours**: High-volume (>10k transactions/day)
+- **Nightly**: Standard (1k-10k transactions/day)
+- **Weekly**: Low-volume (<1k transactions/day)
+- **On-demand**: Testing or emergency correction
+
+### Architecture Decision Matrix
+
+| Daily Volume | Architecture | Frequency | Timeout Needed |
+|-------------|--------------|-----------|----------------|
+| <1,000 | Simple loop | Weekly | 30 min |
+| 1,000-10,000 | Pagination | Nightly | 30 min |
+| 10,000-50,000 | Checkpoint/Resume | Every 4 hrs | 2 hours |
+| >50,000 | Queue-based | Continuous | N/A |
 
 ### Scope Options:
 - **Full rebuild**: Most accurate, slowest

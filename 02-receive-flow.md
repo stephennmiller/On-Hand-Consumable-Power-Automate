@@ -18,6 +18,12 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 )
 ```
 
+**Flow Settings:**
+- **Concurrency Control:** On
+- **Degree of Parallelism:** 1 (ensures transaction atomicity)
+- **Retry Policy:** Exponential backoff
+- **Timeout:** PT5M (5 minutes)
+
 ## Step-by-Step Build Instructions
 
 ### Step 1: Create New Flow
@@ -26,8 +32,10 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 3. Name: `TT - Receive → OnHand Upsert`
 4. Choose trigger: **"When an item is created or modified - SharePoint"**
 5. Configure:
-   - Site Address: Your SharePoint site
+   - Site Address: `@{parameters('SharePointSiteUrl')}`
    - List Name: Tech Transactions
+6. **Advanced Options:**
+   - Limit Columns by View: Use a view that includes only necessary fields
 
 ### Step 2: Set Trigger Condition
 1. Click the three dots on the trigger → **"Settings"**
@@ -42,8 +50,13 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 ```
 5. Click **"Done"**
 
-### Step 3: Initialize Variables
-Add 6 **"Initialize variable"** actions:
+### Step 3: Add Transaction Scope
+Add **"Scope"** action named **"Transaction - Receive Processing"**
+
+All subsequent steps go inside this scope for atomic transaction handling.
+
+### Step 4: Initialize Variables
+Inside the Transaction scope, add 8 **"Initialize variable"** actions:
 
 #### Variable 1: vPart
 - **Name:** vPart
@@ -75,27 +88,50 @@ Add 6 **"Initialize variable"** actions:
 - **Type:** String
 - **Value:** `triggerBody()?['ID']`
 
-### Step 4: Get Matching On-Hand Row
+#### Variable 7: vFlowRunId
+- **Name:** vFlowRunId
+- **Type:** String
+- **Value:** `workflow()?['run']?['name']`
+
+#### Variable 8: vTransactionSuccess
+- **Name:** vTransactionSuccess
+- **Type:** Boolean
+- **Value:** `false`
+
+### Step 5: Add Throttle Delay
+Add **"Delay"** action:
+- Count: 100
+- Unit: Millisecond
+
+*This prevents SharePoint throttling when processing multiple transactions*
+
+### Step 6: Get Matching On-Hand Row with Pagination
 Add **"Get items - SharePoint"** action:
 
 **Action Name:** "Get On-Hand for Part+Batch"
 
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Filter Query:
 ```
-PartNumber eq '@{variables('vPart')}' and Batch eq '@{variables('vBatch')}' and UOM eq '@{variables('vUOM')}'
+(PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (IsActive eq true)
 ```
 
 **Note:** If using Location field, add to filter:
 ```
-PartNumber eq '@{variables('vPart')}' and Batch eq '@{variables('vBatch')}' and UOM eq '@{variables('vUOM')}' and Location eq '@{variables('vLoc')}'
+(PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (Location eq '@{variables('vLoc')}') and (IsActive eq true)
 ```
 
 - Top Count: 1
+- **Select Query:** `ID,OnHandQty,PartNumber,Batch,UOM,Location`
+- **Order By:** `Modified desc`
+- **Settings:**
+  - Retry Policy: Fixed Interval
+  - Count: 3
+  - Interval: PT2S
 
-### Step 5: Check if Row Exists
+### Step 7: Check if Row Exists
 Add **"Condition"** action:
 
 **Condition Name:** "On-Hand Row Exists?"
@@ -107,17 +143,35 @@ Add **"Condition"** action:
 @greater(length(body('Get_On-Hand_for_Part+Batch')?['value']), 0)
 ```
 
-### Step 6: Configure YES Branch (Update Existing)
+### Step 8: Configure YES Branch (Update Existing)
 
-In the **Yes** branch, add **"Update item - SharePoint"** action:
+In the **Yes** branch:
+
+#### Step 8a: Lock Record (Optional for high concurrency)
+Add **"Update item - SharePoint"** action:
+
+**Action Name:** "Lock On-Hand Record"
+
+**Configure:**
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: On-Hand Material
+- Id: `first(body('Get_On-Hand_for_Part+Batch')?['value'])?['ID']`
+- Fields:
+  - Title: `LOCKED-@{variables('vFlowRunId')}`
+- **Settings:**
+  - Retry Policy: None (fail fast if locked)
+
+#### Step 8b: Update with New Quantity
+Add **"Update item - SharePoint"** action:
 
 **Action Name:** "Update Existing On-Hand"
 
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Id: `first(body('Get_On-Hand_for_Part+Batch')?['value'])?['ID']`
 - Fields:
+  - Title: ` ` (clear lock)
   - OnHandQty:
     ```
     add(
@@ -129,15 +183,19 @@ In the **Yes** branch, add **"Update item - SharePoint"** action:
   - LastMovementType: `Receive`
   - LastMovementRefId: `@{variables('vId')}`
   - IsActive: `true`
+- **Settings:**
+  - Retry Policy: Exponential
+  - Count: 3
+  - Interval: PT10S
 
-### Step 7: Configure NO Branch (Create New)
+### Step 9: Configure NO Branch (Create New)
 
 In the **No** branch, add **"Create item - SharePoint"** action:
 
 **Action Name:** "Create New On-Hand"
 
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Fields:
   - PartNumber: `@{variables('vPart')}`
@@ -149,32 +207,95 @@ In the **No** branch, add **"Create item - SharePoint"** action:
   - LastMovementType: `Receive`
   - LastMovementRefId: `@{variables('vId')}`
   - IsActive: `true`
+- **Settings:**
+  - Retry Policy: Exponential
+  - Count: 3
+  - Interval: PT10S
 
-### Step 8: Mark Transaction as Posted
-Add **"Update item - SharePoint"** action (outside the condition):
+### Step 10: Set Success Flag
+Add **"Set variable"** action (outside the condition):
+- Name: vTransactionSuccess
+- Value: `true`
+
+### Step 11: Mark Transaction as Posted
+Add **"Update item - SharePoint"** action:
 
 **Action Name:** "Mark Tech Transaction Posted"
 
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
   - PostStatus: `Posted`
   - PostMessage: `Successfully added to inventory`
   - PostedAt: `utcNow()`
+- **Settings:**
+  - Retry Policy: Fixed Interval
+  - Count: 3
+  - Interval: PT5S
 
-### Step 9: Add Debug Compose (Optional)
-Add **"Compose"** action after Step 4:
+### Step 12: Add Error Handling
+Add **"Scope"** action named **"Catch - Handle Errors"**
 
-**Action Name:** "Debug - On-Hand Results"
+**Configure Run After:**
+- Has failed, is skipped, has timed out
+
+Inside Catch scope:
+
+#### Step 12a: Check if Partial Success
+Add **"Condition"** action:
+- Left: `@{variables('vTransactionSuccess')}`
+- Operand: is equal to
+- Right: `false`
+
+**If Yes (Transaction Failed):**
+
+##### Rollback Actions
+Add **"Condition"** to check if update was attempted:
+- If On-Hand was created/updated but posting failed, consider reversal
+
+##### Log Error
+Add **"Create item - SharePoint"** action:
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: Flow Error Log
+- Fields:
+  - FlowName: `TT - Receive → OnHand Upsert`
+  - ErrorMessage: `@{result('Transaction_-_Receive_Processing')}`
+  - RecordId: `@{variables('vId')}`
+  - Severity: `Critical`
+  - Timestamp: `utcNow()`
+
+##### Update Transaction with Error
+Add **"Update item - SharePoint"** action:
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: Tech Transactions
+- Id: `@{variables('vId')}`
+- Fields:
+  - PostStatus: `Error`
+  - PostMessage: `Failed to process receive. Run ID: @{variables('vFlowRunId')}`
+  - PostedAt: `utcNow()`
+
+##### Send Alert
+Add **"Send an email (V2)"** action:
+- To: `@{parameters('AdminEmail')}`
+- Subject: `ERROR: Receive Processing Failed`
+- Body: Include transaction details and error message
+
+### Step 13: Add Performance Monitoring (Optional)
+Add **"Compose"** action at the end:
+
+**Action Name:** "Performance Metrics"
 
 **Inputs:**
 ```
 {
-  "FoundRows": @{length(body('Get_On-Hand_for_Part+Batch')?['value'])},
-  "FirstRow": @{first(body('Get_On-Hand_for_Part+Batch')?['value'])},
-  "WillUpdate": @{greater(length(body('Get_On-Hand_for_Part+Batch')?['value']), 0)}
+  "FlowRunId": "@{variables('vFlowRunId')}",
+  "TransactionId": "@{variables('vId')}",
+  "ProcessingTime": "@{dateDifference(workflow()?['run']?['startTime'], utcNow())}",
+  "PartNumber": "@{variables('vPart')}",
+  "Quantity": @{variables('vQty')},
+  "Success": @{variables('vTransactionSuccess')}
 }
 ```
 

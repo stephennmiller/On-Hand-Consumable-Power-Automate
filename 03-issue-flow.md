@@ -18,6 +18,13 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 )
 ```
 
+**Flow Settings:**
+- **Concurrency Control:** On
+- **Degree of Parallelism:** 1 (critical for stock accuracy)
+- **Retry Policy:** Exponential backoff
+- **Timeout:** PT5M (5 minutes)
+- **Run Priority:** High (issues before receives)
+
 ## Step-by-Step Build Instructions
 
 ### Step 1: Create New Flow
@@ -26,8 +33,10 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 3. Name: `TT - Issue → OnHand Upsert`
 4. Choose trigger: **"When an item is created or modified - SharePoint"**
 5. Configure:
-   - Site Address: Your SharePoint site
+   - Site Address: `@{parameters('SharePointSiteUrl')}`
    - List Name: Tech Transactions
+6. **Advanced Options:**
+   - Limit Columns by View: Yes (performance optimization)
 
 ### Step 2: Set Trigger Condition
 1. Click the three dots on the trigger → **"Settings"**
@@ -42,8 +51,13 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 ```
 5. Click **"Done"**
 
-### Step 3: Initialize Variables
-Add 7 **"Initialize variable"** actions:
+### Step 3: Add Atomic Transaction Scope
+Add **"Scope"** action named **"Atomic Transaction - Issue Processing"**
+
+All subsequent steps (except final error handling) go inside this scope.
+
+### Step 4: Initialize Variables
+Inside the Atomic Transaction scope, add 10 **"Initialize variable"** actions:
 
 #### Variable 1: vPart
 - **Name:** vPart
@@ -80,27 +94,52 @@ Add 7 **"Initialize variable"** actions:
 - **Type:** String
 - **Value:** `trim(coalesce(triggerBody()?['PONumber'], ''))`
 
-### Step 4: Get Matching On-Hand Row
+#### Variable 8: vFlowRunId
+- **Name:** vFlowRunId
+- **Type:** String
+- **Value:** `workflow()?['run']?['name']`
+
+#### Variable 9: vOriginalQty
+- **Name:** vOriginalQty
+- **Type:** Float
+- **Value:** `0` (will store original on-hand for rollback)
+
+#### Variable 10: vUpdateCompleted
+- **Name:** vUpdateCompleted
+- **Type:** Boolean
+- **Value:** `false` (tracks if inventory was modified)
+
+### Step 5: Add Throttle Protection
+Add **"Delay"** action:
+- Count: 100
+- Unit: Millisecond
+
+### Step 6: Get and Lock On-Hand Row
 Add **"Get items - SharePoint"** action:
 
-**Action Name:** "Get On-Hand for Part+Batch"
+**Action Name:** "Get On-Hand for Part+Batch with Lock"
 
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Filter Query:
 ```
-PartNumber eq '@{variables('vPart')}' and Batch eq '@{variables('vBatch')}' and UOM eq '@{variables('vUOM')}'
+(PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (IsActive eq true)
 ```
 
-**Note:** If using Location field, add to filter:
+**Note:** If using Location field:
 ```
-PartNumber eq '@{variables('vPart')}' and Batch eq '@{variables('vBatch')}' and UOM eq '@{variables('vUOM')}' and Location eq '@{variables('vLoc')}'
+(PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (Location eq '@{variables('vLoc')}') and (IsActive eq true)
 ```
 
 - Top Count: 1
+- **Select Query:** `ID,OnHandQty,PartNumber,Batch,UOM,Location,Title`
+- **Settings:**
+  - Retry Policy: Fixed Interval
+  - Count: 3
+  - Interval: PT2S
 
-### Step 5: Check if Row Exists
+### Step 7: Check if Row Exists
 Add **"Condition"** action:
 
 **Condition Name:** "On-Hand Row Exists?"
@@ -109,12 +148,12 @@ Add **"Condition"** action:
 - Click "Edit in advanced mode"
 - Paste:
 ```
-@greater(length(body('Get_On-Hand_for_Part+Batch')?['value']), 0)
+@greater(length(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value']), 0)
 ```
 
 **If No:**
 - Add **"Update item - SharePoint"** action
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
@@ -124,20 +163,40 @@ Add **"Condition"** action:
 - Add **"Terminate"** action
   - Status: Succeeded
 
-### Step 6: Compute New Quantity (In YES Branch)
-Add **"Compose"** action in the YES branch:
+### Step 8: Store Original Quantity (In YES Branch)
+Add **"Set variable"** action in the YES branch:
+- Name: vOriginalQty
+- Value: `float(first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['OnHandQty'])`
+
+### Step 9: Attempt Lock (Optimistic Locking)
+Add **"Update item - SharePoint"** action:
+
+**Action Name:** "Lock On-Hand Record"
+
+**Configure:**
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: On-Hand Material
+- Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
+- Fields:
+  - Title: `LOCKED-@{variables('vFlowRunId')}-@{utcNow('yyyyMMddHHmmss')}`
+- **Settings:**
+  - Retry Policy: None (fail fast if already locked)
+  - Configure run after: Continue only if previous action succeeded
+
+### Step 10: Compute New Quantity
+Add **"Compose"** action:
 
 **Action Name:** "Compute New Qty"
 
 **Inputs:**
 ```
 @sub(
-  float(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']),
+  float(variables('vOriginalQty')),
   float(variables('vQty'))
 )
 ```
 
-### Step 7: Check Sufficient Stock
+### Step 11: Check Sufficient Stock
 Add **"Condition"** action:
 
 **Condition Name:** "Sufficient Stock?"
@@ -146,30 +205,41 @@ Add **"Condition"** action:
 - outputs('Compute_New_Qty') | is greater than or equal to | 0
 
 **If No:**
+
+#### Release Lock First
+Add **"Update item - SharePoint"** action:
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: On-Hand Material
+- Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
+- Fields:
+  - Title: ` ` (clear lock)
+
+#### Then Update Transaction
 - Add **"Update item - SharePoint"** action
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
   - PostStatus: `Error`
   - PostMessage: 
     ```
-    Insufficient inventory. Available: @{first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']}, Requested: @{variables('vQty')}
+    Insufficient inventory. Available: @{variables('vOriginalQty')}, Requested: @{variables('vQty')}
     ```
   - PostedAt: `utcNow()`
 - Add **"Terminate"** action
   - Status: Succeeded
 
-### Step 8: Update On-Hand (In YES Branch of Step 7)
+### Step 12: Update On-Hand with Unlock (In YES Branch)
 Add **"Update item - SharePoint"** action:
 
-**Action Name:** "Update On-Hand Qty"
+**Action Name:** "Update On-Hand Qty and Release Lock"
 
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: On-Hand Material
-- Id: `first(body('Get_On-Hand_for_Part+Batch')?['value'])?['ID']`
+- Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
 - Fields:
+  - Title: ` ` (clear lock)
   - OnHandQty: `@{outputs('Compute_New_Qty')}`
   - LastMovementAt: `utcNow()`
   - LastMovementType: `Issue`
@@ -178,34 +248,121 @@ Add **"Update item - SharePoint"** action:
     ```
     @if(greater(outputs('Compute_New_Qty'), 0), true, false)
     ```
+- **Settings:**
+  - Retry Policy: Exponential
+  - Count: 3
+  - Interval: PT10S
 
-### Step 9: Mark Transaction as Posted
-Add **"Update item - SharePoint"** action (still in YES branch):
+### Step 13: Set Update Completed Flag
+Add **"Set variable"** action:
+- Name: vUpdateCompleted
+- Value: `true`
+
+### Step 14: Mark Transaction as Posted
+Add **"Update item - SharePoint"** action:
 
 **Action Name:** "Mark Tech Transaction Posted"
 
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
   - PostStatus: `Posted`
   - PostMessage: `Successfully issued from inventory. Remaining: @{outputs('Compute_New_Qty')}`
   - PostedAt: `utcNow()`
+- **Settings:**
+  - Retry Policy: Fixed Interval
+  - Count: 3
+  - Interval: PT5S
 
-### Step 10: Add Debug Compose (Optional)
-Add **"Compose"** action after Step 6:
+### Step 15: Add Compensating Transaction Scope
+Add **"Scope"** action named **"Compensate - Rollback on Failure"**
 
-**Action Name:** "Debug - Stock Check"
+**Configure Run After:**
+- Has failed, is skipped, has timed out
 
-**Inputs:**
+Inside Compensate scope:
+
+#### Step 15a: Check if Rollback Needed
+Add **"Condition"** action:
+- Left: `@{variables('vUpdateCompleted')}`
+- Operand: is equal to
+- Right: `true`
+
+**If Yes (Need to Rollback):**
+
+##### Rollback Inventory Update
+Add **"Update item - SharePoint"** action:
+
+**Action Name:** "Rollback On-Hand to Original"
+
+**Configure:**
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: On-Hand Material
+- Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
+- Fields:
+  - Title: ` ` (clear any lock)
+  - OnHandQty: `@{variables('vOriginalQty')}`
+  - LastMovementAt: `utcNow()`
+  - LastMovementType: `Rollback-Issue`
+  - LastMovementRefId: `ROLLBACK-@{variables('vId')}`
+- **Settings:**
+  - Retry Policy: Exponential
+  - Count: 5 (critical to succeed)
+  - Interval: PT30S
+
+##### Log Rollback
+Add **"Create item - SharePoint"** action:
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: Flow Error Log
+- Fields:
+  - FlowName: `TT - Issue → OnHand Upsert`
+  - ErrorMessage: `Rollback executed for transaction @{variables('vId')}`
+  - Severity: `Critical`
+  - Timestamp: `utcNow()`
+
+#### Step 15b: Always Execute - Error Logging
+
+##### Log Error
+Add **"Create item - SharePoint"** action:
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: Flow Error Log
+- Fields:
+  - FlowName: `TT - Issue → OnHand Upsert`
+  - ErrorMessage: `@{result('Atomic_Transaction_-_Issue_Processing')}`
+  - RecordId: `@{variables('vId')}`
+  - Severity: `Critical`
+  - Timestamp: `utcNow()`
+
+##### Update Transaction with Error
+Add **"Update item - SharePoint"** action:
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: Tech Transactions
+- Id: `@{variables('vId')}`
+- Fields:
+  - PostStatus: `Error`
+  - PostMessage: `Failed to process issue. Rollback @{if(variables('vUpdateCompleted'), 'completed', 'not needed')}. Run: @{variables('vFlowRunId')}`
+  - PostedAt: `utcNow()`
+
+##### Send Critical Alert
+Add **"Send an email (V2)"** action:
+- To: `@{parameters('AdminEmail')}`
+- Subject: `CRITICAL: Issue Processing Failed - Rollback @{if(variables('vUpdateCompleted'), 'Executed', 'N/A')}`
+- Body:
 ```
-{
-  "CurrentOnHand": @{first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']},
-  "RequestedQty": @{variables('vQty')},
-  "NewQty": @{outputs('Compute_New_Qty')},
-  "PONumber": "@{variables('vPO')}"
-}
+Transaction ID: @{variables('vId')}
+Part: @{variables('vPart')}
+Batch: @{variables('vBatch')}
+Quantity: @{variables('vQty')}
+PO: @{variables('vPO')}
+Original On-Hand: @{variables('vOriginalQty')}
+Update Completed: @{variables('vUpdateCompleted')}
+Rollback Status: @{if(variables('vUpdateCompleted'), 'Executed', 'Not Required')}
+Flow Run: @{variables('vFlowRunId')}
+Time: @{utcNow()}
+
+Immediate investigation required.
 ```
 
 ## Testing Checklist

@@ -10,6 +10,12 @@ Validates all new Tech Transaction entries, ensuring data quality and business r
 **Trigger:** When an item is created  
 **List:** Tech Transactions
 
+**Flow Settings:**
+- **Concurrency Control:** On
+- **Degree of Parallelism:** 1
+- **Retry Policy:** Default (exponential backoff)
+- **Run After Configuration:** Continue on timeout
+
 ## Step-by-Step Build Instructions
 
 ### Step 1: Create New Flow
@@ -18,11 +24,20 @@ Validates all new Tech Transaction entries, ensuring data quality and business r
 3. Name: `TT - Intake Validate`
 4. Choose trigger: **"When an item is created - SharePoint"**
 5. Configure:
-   - Site Address: Your SharePoint site
+   - Site Address: `@{parameters('SharePointSiteUrl')}`
    - List Name: Tech Transactions
+6. **Trigger Settings:**
+   - Click three dots → Settings
+   - Split On: Off (to prevent array splitting)
+   - Concurrency: 1 (sequential processing)
 
-### Step 2: Initialize Variables
-Add 7 **"Initialize variable"** actions:
+### Step 2: Add Error Handling Scope
+Add **"Scope"** action named **"Try - Main Logic"**
+
+All subsequent steps (except error handling) go inside this scope.
+
+### Step 3: Initialize Variables
+Inside the Try scope, add 8 **"Initialize variable"** actions:
 
 #### Variable 1: vType
 - **Name:** vType
@@ -80,7 +95,38 @@ trim(coalesce(triggerBody()?['Location'], ''))
 float(coalesce(triggerBody()?['Qty'], 0))
 ```
 
-### Step 3: Validate Transaction Type
+#### Variable 8: vFlowRunId
+- **Name:** vFlowRunId
+- **Type:** String
+- **Value:**
+```
+workflow()?['run']?['name']
+```
+
+### Step 4: Add Duplicate Check
+Add **"Get items - SharePoint"** action:
+
+**Action Name:** "Check for Duplicate Transaction"
+
+**Configure:**
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: Tech Transactions
+- Filter Query:
+```
+PartNumber eq '@{variables('vPart')}' and Batch eq '@{variables('vBatch')}' and abs(Qty - @{variables('vQty')}) lt 0.01 and Created ge '@{addMinutes(utcNow(), -1)}' and ID ne @{triggerBody()?['ID']}
+```
+- Top Count: 1
+
+**Add Condition:** "Is Duplicate?"
+- Left: `length(body('Check_for_Duplicate_Transaction')?['value'])`
+- Operand: is greater than
+- Right: 0
+
+**If Yes:**
+- Update item: PostStatus='Error', PostMessage='Duplicate transaction detected within 1 minute'
+- Terminate: Status=Succeeded
+
+### Step 5: Validate Transaction Type
 Add **"Condition"** action:
 
 **Condition Name:** "Check Valid Transaction Type"
@@ -184,14 +230,19 @@ Add **"Condition"** inside Yes branch:
 - Update item with PostMessage: `PONumber is required for Issue transactions`
 - Terminate
 
-#### Step 8b: Fetch PO Record
+#### Step 8b: Fetch PO Record with Retry
 Add **"Get items - SharePoint"** action (in Yes of 8a):
 
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: PO List
 - Filter Query: `PONumber eq '@{variables('vPO')}'`
 - Top Count: 1
+- **Settings:**
+  - Retry Policy: Exponential
+  - Count: 3
+  - Interval: PT10S
+  - Maximum Interval: PT1H
 
 #### Step 8c: Validate PO Exists and Open
 Add **"Condition"** action:
@@ -209,16 +260,84 @@ Add **"Condition"** action:
 - Terminate
 
 ### Step 9: Mark as Validated
-Add **"Update item - SharePoint"** action (at the end, outside all conditions):
+Add **"Update item - SharePoint"** action (at the end of Try scope):
 
 **Configure:**
-- Site Address: Your site
+- Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `triggerBody()?['ID']`
 - Fields:
   - PostStatus: `Validated`
   - PostMessage: ` ` (empty)
   - PostedAt: `utcNow()`
+- **Settings:**
+  - Retry Policy: Fixed Interval
+  - Count: 3
+  - Interval: PT5S
+
+### Step 10: Add Error Handling Scope
+Add **"Scope"** action named **"Catch - Error Handling"**
+
+**Configure Run After:**
+- Click three dots → Settings → Configure run after
+- Check: has failed, is skipped, has timed out
+
+Inside Catch scope:
+
+#### Step 10a: Log Error
+Add **"Create item - SharePoint"** action:
+
+**Action Name:** "Log Error to List"
+
+**Configure:**
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: Flow Error Log
+- Fields:
+  - FlowName: `TT - Intake Validate`
+  - ErrorMessage: `@{concat('Error validating transaction ID: ', triggerBody()?['ID'], ' - ', result('Try_-_Main_Logic'))}`
+  - StackTrace: `@{body('Try_-_Main_Logic')}`
+  - RecordId: `@{triggerBody()?['ID']}`
+  - Severity: `Critical`
+  - Timestamp: `utcNow()`
+
+#### Step 10b: Update Transaction with Error
+Add **"Update item - SharePoint"** action:
+
+**Configure:**
+- Site Address: `@{parameters('SharePointSiteUrl')}`
+- List Name: Tech Transactions
+- Id: `triggerBody()?['ID']`
+- Fields:
+  - PostStatus: `Error`
+  - PostMessage: `System error during validation. Admin notified. Run ID: @{variables('vFlowRunId')}`
+  - PostedAt: `utcNow()`
+
+#### Step 10c: Send Alert Email
+Add **"Send an email (V2)"** action:
+
+**Configure:**
+- To: `@{parameters('AdminEmail')}`
+- Subject: `CRITICAL: Intake Validation Flow Error`
+- Body:
+```
+Flow: TT - Intake Validate
+Run ID: @{variables('vFlowRunId')}
+Transaction ID: @{triggerBody()?['ID']}
+Error: @{result('Try_-_Main_Logic')}
+Time: @{utcNow()}
+
+Please investigate immediately.
+```
+
+### Step 11: Add Finally Scope (Optional)
+Add **"Scope"** action named **"Finally - Cleanup"**
+
+**Configure Run After:**
+- Check all: is successful, has failed, is skipped, has timed out
+
+Inside Finally scope:
+- Add any cleanup actions if needed
+- Log completion metrics
 
 ## Testing Checklist
 
