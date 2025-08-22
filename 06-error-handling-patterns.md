@@ -69,7 +69,7 @@ Add **"Compose"** action:
   "FlowName": "@{workflow()?['name']}",
   "RunId": "@{workflow()?['run']?['name']}",
   "TryResult": "@{result('Try_-_Main_Logic')}",
-  "TryBody": "@{outputs('Try_-_Main_Logic')?['body']}",
+  "TryStatus": "@{actions('Try_-_Main_Logic')?['status']}",
   "TriggerData": "@{triggerBody()}"
 }
 ```
@@ -84,8 +84,8 @@ Add **"Create item - SharePoint"** action:
 - List Name: Flow Error Log
 - Fields:
   - FlowName: `@{workflow()?['name']}`
-  - ErrorMessage: `@{result('Try_-_Main_Logic')}`
-  - StackTrace: `@{outputs('Capture_Error_Info')}`
+  - ErrorMessage: `@{join(select(result('Try_-_Main_Logic'), '?[''error'']?[''message'']'), ', ')}`
+  - StackTrace: `@{string(outputs('Capture_Error_Info'))}`
   - RecordId: `@{triggerBody()?['ID']}`
   - Severity: Use condition to determine
   - Timestamp: `utcNow()`
@@ -97,7 +97,7 @@ Add **"Condition"** action:
 **Configure:** Check severity
 
 ```powerautomate
-@contains(result('Try_-_Main_Logic'), 'Critical')
+@contains(join(select(result('Try_-_Main_Logic'), '?[''error'']?[''message'']'), ', '), 'Critical')
 ```
 
 **If Yes:**
@@ -208,7 +208,7 @@ For operations that modify data:
 
 ### Compensating Transaction Implementation
 
-```text
+```
 1. Store original state
 2. Perform operation
 3. On failure:
@@ -364,7 +364,7 @@ Reason: Prevent data corruption
 
 1. **Identify Scope**
 
-   ```text
+   ```
    Query: PostStatus eq 'Error' and Created gt '[Date]'
    Action: Export to Excel for analysis
    ```
@@ -376,7 +376,7 @@ Reason: Prevent data corruption
 
 3. **Bulk Retry**
 
-   ```text
+   ```
    For each error record:
      Reset PostStatus to ''
      Clear PostMessage

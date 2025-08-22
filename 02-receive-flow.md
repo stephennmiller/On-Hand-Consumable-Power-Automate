@@ -20,12 +20,7 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 )
 ```
 
-**Flow Settings:**
-
-- **Concurrency Control:** On
-- **Degree of Parallelism:** 1 (ensures transaction atomicity)
-- **Retry Policy:** Exponential backoff
-- **Timeout:** PT5M (5 minutes)
+**Note:** Configure concurrency control at the trigger level and retry policies at individual action levels as described in the steps below.
 
 ## Step-by-Step Build Instructions
 
@@ -55,7 +50,7 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 )
 ```
 
-1. Click **"Done"
+1. Click **"Done"**
 
 ### Step 3: Add Transaction Scope
 
@@ -216,7 +211,7 @@ Add **"Send an HTTP request to SharePoint"** action:
     "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
   },
   "Title": "@{variables('vOriginalTitle')}",
-  "OnHandQty": @{add(float(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']), float(variables('vQty')))},
+  "OnHandQty": @{add(float(coalesce(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty'], 0)), float(variables('vQty')))},
   "LastMovementAt": "@{utcNow()}",
   "LastMovementType": "Receive",
   "LastMovementRefId": "@{variables('vId')}",
@@ -428,7 +423,7 @@ Add **"Compose"** action at the end:
 
 ### Add Quantities
 
-```text
+```powerautomate
 add(
   float(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']),
   float(variables('vQty'))
@@ -437,7 +432,7 @@ add(
 
 ### Get First Item ID
 
-```text
+```powerautomate
 first(body('Get_On-Hand_for_Part+Batch')?['value'])?['ID']
 ```
 

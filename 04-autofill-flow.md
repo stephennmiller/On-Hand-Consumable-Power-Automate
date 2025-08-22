@@ -148,7 +148,7 @@ Add **"Update item - SharePoint"** action:
 - Id: `triggerBody()?['ID']`
 - Fields to Update:
   - Description: `first(body('Get_Part_from_Master')?['value'])?['Description']`
-  - UOM: `if(equals(length(coalesce(triggerBody()?['UOM'], '')), 0), first(body('Get_Part_from_Master')?['value'])?['UOM'], triggerBody()?['UOM'])`
+  - UOM: `@{if(equals(length(coalesce(triggerBody()?['UOM'], '')), 0), first(body('Get_Part_from_Master')?['value'])?['UOM'], triggerBody()?['UOM'])}`
 
 ### Step 8: Optional - Log Part Not Found (In NO Branch of Step 6)
 

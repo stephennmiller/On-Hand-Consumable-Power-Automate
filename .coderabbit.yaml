@@ -38,6 +38,9 @@ reviews:
     # Markdownlint for markdown files
     markdownlint:
       enabled: true
+    # LanguageTool for grammar and style
+    languagetool:
+      enabled: true
 
   # Review scope - focus on documentation
   path_filters:

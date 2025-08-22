@@ -20,12 +20,7 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 )
 ```
 
-**Flow Settings:**
-
-- **Concurrency Control:** On
-- **Degree of Parallelism:** 1 (critical for stock accuracy)
-- **Retry Policy:** Exponential backoff
-- **Timeout:** PT5M (5 minutes)
+**Note:** Configure concurrency control at the trigger level and retry policies at individual action levels as described in the steps below.
 
 ## Step-by-Step Build Instructions
 
@@ -430,7 +425,7 @@ Add **"Update item - SharePoint"** action:
 - List Name: On-Hand Material
 - Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
 - Fields:
-  - Title: `@{variables('vOriginalTitle')}` (restore original title)
+  - Title: `@{variables('vOriginalTitle')}`
   - OnHandQty: `@{variables('vOriginalQty')}`
   - LastMovementAt: `utcNow()`
   - LastMovementType: `Rollback-Issue`

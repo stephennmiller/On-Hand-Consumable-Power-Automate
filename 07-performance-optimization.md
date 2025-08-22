@@ -14,7 +14,7 @@ SharePoint lists have a view threshold of 5000 items. Queries returning more wil
 
 1. **Indexed Columns (Required)**
 
-```text
+```
 Tech Transactions:
 - PartNumber (Indexed)
 - PostStatus (Indexed)
@@ -30,7 +30,7 @@ On-Hand Material:
 
 1. **Filter First on Indexed Columns**
 
-```text
+```
 ✅ Good: PartNumber eq 'ABC123' and Batch eq 'LOT001'
 ❌ Bad: Description eq 'Some text' and Qty gt 100
 ```
@@ -137,7 +137,7 @@ Instead of updating items one by one, use batch requests:
     }
   ]
 }
-```text
+```
 
 **Implementation:**
 
@@ -163,7 +163,7 @@ Apply to each:
     Concurrency: On
     Degree of Parallelism: [1-50]
 
-```text
+```
 
 #### Recommended Settings by Scenario
 
@@ -185,15 +185,15 @@ Concurrency: 1 (Sequential processing)
 OR
 Implement optimistic locking with version checks
 
-```text
+```
 
 ## Throttling Management
 
 ### SharePoint Throttling Limits
 
-- **SharePoint Online connector:** Approximately 600 actions per connection per minute
+- **SharePoint Online connector:** Varies by license and tenant
 - **HTTP 429 Response:** Indicates throttling - implement exponential backoff
-- **Note:** Limits vary by connector and license. See [Microsoft Learn - Power Automate Limits](https://learn.microsoft.com/en-us/power-automate/limits-and-config) for current quotas
+- **Note:** For current limits and quotas, see [Microsoft Learn - Power Automate Limits](https://learn.microsoft.com/en-us/power-automate/limits-and-config)
 
 ### Throttling Prevention Strategies
 
@@ -211,7 +211,7 @@ After batch of 10:
     Count: 1
     Unit: Second
 
-```text
+```
 
 #### 2. Implement Exponential Backoff
 
@@ -223,7 +223,7 @@ Retry Policy:
   Interval: PT10S
   Maximum: PT5M
 
-```text
+```
 
 #### 3. Distribute Load
 
@@ -236,7 +236,7 @@ Schedule flows at different times:
 - Flow C: Runs at :30
 - Flow D: Runs at :45
 
-```text
+```
 
 ## Timeout Prevention
 
@@ -261,7 +261,7 @@ Child Flow:
   Process 100 items
   Return status
 
-```text
+```
 
 #### 2. Continuation Token Pattern
 
@@ -281,7 +281,7 @@ Do Until vIsComplete:
     Trigger new instance with token
     Terminate current
 
-```text
+```
 
 #### 3. Queue-Based Processing
 
@@ -300,7 +300,7 @@ Flow 3: Queue Monitor
   Check for stuck items
   Retry failed items
 
-```text
+```
 
 ## Query Optimization
 
@@ -314,7 +314,7 @@ Get items:
   Select Query: ID,PartNumber,Qty,PostStatus
   // Don't retrieve all columns
 
-```text
+```
 
 ### Use Filter Query Effectively
 
@@ -326,7 +326,7 @@ PartNumber eq 'ABC' and PostStatus eq 'Validated' and Created gt '2024-01-01'
 ❌ Suboptimal:
 PostStatus eq 'Validated' // Then filter in Flow
 
-```text
+```
 
 ### Use Order By Strategically
 
@@ -335,7 +335,7 @@ PostStatus eq 'Validated' // Then filter in Flow
 Order By: Created desc
 // Gets newest first, useful for recent data processing
 
-```text
+```
 
 ## Caching Strategies
 
@@ -353,7 +353,7 @@ If not contains(vPartsCache, PartNumber):
   Get from SharePoint
   Add to vPartsCache
 
-```text
+```
 
 ### 2. Daily Cache List
 
@@ -368,7 +368,7 @@ Main Flows:
   Read from cache list (faster)
   Fallback to source if not found
 
-```text
+```
 
 ### 3. Compose Action Caching
 
@@ -382,7 +382,7 @@ Compose: Build lookup table
 
 // Use throughout flow without repeated queries
 
-```text
+```
 
 ## Performance Monitoring
 
@@ -398,9 +398,9 @@ Variables:
 At End of Flow:
 Compose: Performance Metrics
 {
-  "DurationSeconds": div(sub(ticks(utcNow()), ticks(variables('vStartTime'))), 10000000),
+  "DurationSeconds": @{div(sub(ticks(utcNow()), ticks(variables('vStartTime'))), 10000000)},
   "RecordsProcessed": variables('vRecordCount'),
-  "RecordsPerSecond": div(variables('vRecordCount'), max(1, div(sub(ticks(utcNow()), ticks(variables('vStartTime'))), 10000000))),
+  "RecordsPerSecond": @{div(variables('vRecordCount'), max(1, div(sub(ticks(utcNow()), ticks(variables('vStartTime'))), 10000000)))},
   "FlowRun": workflow()?['run']?['name']
 }
 
@@ -508,7 +508,7 @@ Parallel Branch 3: Process Part C items
 Join: Wait for all branches
 Consolidate results
 
-```text
+```
 
 ### 2. Lazy Loading Pattern
 
@@ -518,7 +518,7 @@ Get minimal data first
 Only fetch details when needed
 Cache fetched details
 
-```text
+```
 
 ### 3. Pre-aggregation
 
@@ -532,7 +532,7 @@ Daily Flows:
   Read from summary (fast)
   Only calculate deltas
 
-```text
+```
 
 ### 4. Smart Scheduling
 
@@ -543,7 +543,7 @@ Light flows: Run during business hours
 Distribute start times to avoid peaks
 Use trigger conditions to skip when not needed
 
-```text
+```
 
 ## Recommended Architecture for Scale
 

@@ -11,11 +11,7 @@ Validates all new Tech Transaction entries, ensuring data quality and business r
 **Trigger:** When an item is created  
 **List:** Tech Transactions
 
-**Flow Settings:**
-
-- **Concurrency Control:** On
-- **Degree of Parallelism:** 1
-- **Retry Policy:** Default (exponential backoff)
+**Note:** Configure concurrency control at the trigger level and retry policies at individual action levels as described in the steps below.
 
 ## Step-by-Step Build Instructions
 
@@ -291,7 +287,6 @@ Add **"Get items - SharePoint"** action (in Yes of 10a):
   - Retry Policy: Exponential
   - Count: 3
   - Interval: PT10S
-  - Maximum Interval: PT1H
 
 #### Step 10c: Validate PO Exists and Open
 
@@ -392,7 +387,7 @@ Time: @{utcNow()}
 Please investigate immediately.
 ```
 
-### Step 11: Add Finally Scope (Optional)
+### Step 13: Add Finally Scope (Optional)
 
 Add **"Scope"** action named **"Finally - Cleanup"**
 

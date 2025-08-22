@@ -1,10 +1,12 @@
 ---
 name: power-automate-architect
-description: |
+description: >
   Use this agent when you need to design, build, or optimize Microsoft Power Automate flows for business process automation, system integration, or workflow orchestration. This includes creating automated workflows between Microsoft 365 services (SharePoint, Teams, Outlook), building approval chains, implementing data synchronization between systems, creating notification systems, connecting third-party applications via APIs, automating repetitive manual tasks, or implementing complex business logic with branching and error handling. The agent should be engaged for any Power Platform automation needs, from simple scheduled flows to complex multi-system integrations.
+
 
   Examples:
   
+
   <example>
   Context: User needs to automate a document approval process
   user: "I need to create an approval workflow for expense reports that routes based on amount"
@@ -14,6 +16,7 @@ description: |
   </commentary>
   </example>
   
+
   <example>
   Context: User wants to integrate multiple systems
   user: "We need to sync customer data between Salesforce and our SharePoint lists automatically"
@@ -23,6 +26,7 @@ description: |
   </commentary>
   </example>
   
+
   <example>
   Context: User needs to automate Microsoft 365 tasks
   user: "Can you help me automatically create Teams channels when new projects are added to our SharePoint list?"
