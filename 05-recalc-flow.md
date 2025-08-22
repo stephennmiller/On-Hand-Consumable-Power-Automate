@@ -518,14 +518,14 @@ For resumable processing after timeout:
 }
 ```
 
-2. **On Next Run:**
+1. **On Next Run:**
 
 - Check for incomplete run
 - Load saved state
 - Resume from LastProcessedId
 - Merge with new aggregations
 
-3. **Cleanup After Success:**
+1. **Cleanup After Success:**
 
 - Clear checkpoint data
 - Archive old checkpoints
