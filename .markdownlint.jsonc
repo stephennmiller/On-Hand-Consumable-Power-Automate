@@ -1,0 +1,72 @@
+{
+  // Markdownlint configuration for Power Automate documentation
+  // This config accommodates custom fence languages and Power Automate-specific formatting
+  
+  // Default: Enable all rules except those explicitly disabled
+  "default": true,
+  
+  // MD013: Line length
+  // Disabled for Power Automate expressions which can be long
+  "MD013": false,
+  
+  // MD033: Inline HTML
+  // Allow inline HTML for complex formatting needs
+  "MD033": false,
+  
+  // MD040: Fenced code blocks should have a language specified
+  // Disabled to allow custom languages like 'powerautomate'
+  "MD040": false,
+  
+  // MD046: Code block style
+  // Allow both fenced and indented code blocks
+  "MD046": false,
+  
+  // MD041: First line in file should be a top level heading
+  // Allow for comment blocks at the beginning
+  "MD041": false,
+  
+  // MD024: Multiple headings with the same content
+  // Allow repeated headings across different sections
+  "MD024": {
+    "siblings_only": true
+  },
+  
+  // MD026: Trailing punctuation in heading
+  // Allow colons in headings for Power Automate action names
+  "MD026": {
+    "punctuation": ".,;!?"
+  },
+  
+  // MD028: Blank line inside blockquote
+  // Allow for complex blockquotes
+  "MD028": false,
+  
+  // MD031: Fenced code blocks should be surrounded by blank lines
+  // Allow tighter formatting for step-by-step guides
+  "MD031": false,
+  
+  // MD032: Lists should be surrounded by blank lines
+  // Allow tighter formatting for action configurations
+  "MD032": false,
+  
+  // MD034: Bare URL used
+  // Allow bare URLs in documentation
+  "MD034": false,
+  
+  // MD036: Emphasis used instead of a heading
+  // Allow bold text for emphasis in guides
+  "MD036": false,
+  
+  // MD038: Spaces inside code span elements
+  // Allow for formatting flexibility
+  "MD038": false,
+  
+  // MD044: Proper names should have the correct capitalization
+  // Disabled due to many technical terms
+  "MD044": false,
+  
+  // MD049/MD050: Code block style consistency
+  // Allow both styles for different use cases
+  "MD049": false,
+  "MD050": false
+}

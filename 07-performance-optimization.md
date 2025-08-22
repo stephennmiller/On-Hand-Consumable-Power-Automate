@@ -191,9 +191,9 @@ Implement optimistic locking with version checks
 
 ### SharePoint Throttling Limits
 
-- **Per User:** 600 requests/minute
-- **Per App:** 60,000 requests/minute
-- **Response:** 429 Too Many Requests
+- **SharePoint Online connector:** Approximately 600 actions per connection per minute
+- **HTTP 429 Response:** Indicates throttling - implement exponential backoff
+- **Note:** Limits vary by connector and license. See [Microsoft Learn - Power Automate Limits](https://learn.microsoft.com/en-us/power-automate/limits-and-config) for current quotas
 
 ### Throttling Prevention Strategies
 

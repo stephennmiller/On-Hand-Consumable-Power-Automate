@@ -63,6 +63,13 @@ Create a SharePoint list named **"On-Hand Material"** with these columns:
 | LastMovementType | Single line of text | Optional |
 | LastMovementRefId | Single line of text | Optional |
 | IsActive | Yes/No | Default: Yes |
+| OHKey | Calculated (see below) | Enforce unique values, Indexed |
+
+**OHKey Formula:**
+```
+=UPPER(TRIM([PartNumber]))&"|"&UPPER(TRIM([Batch]))&"|"&UPPER(TRIM(IF(ISBLANK([Location]),"",[Location])))
+```
+This calculated column ensures composite uniqueness for Part+Batch+Location combinations. All flows should populate this when creating/updating On-Hand records.
 
 ### 5. Flow Error Log (Monitoring)
 
@@ -184,12 +191,12 @@ float(coalesce(triggerBody()?['Qty'], 0))
 ### Null Checking
 
 ```powerautomate
-equals(length(trim(variables('vPart'))), 0)
+equals(length(trim(coalesce(triggerBody()?['PartNumber'], ''))), 0)
 ```
 
 ### Current Timestamp
 
-```text
+```powerautomate
 utcNow()
 ```
 

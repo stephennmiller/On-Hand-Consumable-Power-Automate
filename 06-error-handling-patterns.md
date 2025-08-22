@@ -345,10 +345,10 @@ Reason: Prevent data corruption
    - Verify exponential backoff works
    - Check error logging
 
-2. **Simulate Network Timeout**
-   - Use delay of 6 minutes
-   - Verify timeout handling
-   - Check compensation logic
+2. **Force Controlled Failure**
+   - Add a Condition → Terminate (Failed) when testing flag is set
+   - Verify Catch scope runs and logs correctly
+   - Optionally call an HTTP action to a non-routable IP (e.g., 10.255.255.1) to simulate timeout
 
 3. **Test Partial Failure**
    - Update record then force error

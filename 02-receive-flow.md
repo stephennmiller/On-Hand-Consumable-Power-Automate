@@ -139,13 +139,13 @@ Add **"Get items - SharePoint"** action:
 - Filter Query:
 
 ```powerautomate
-(PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (IsActive eq true)
+(PartNumber eq '@{replace(variables('vPart'),'''','''''')}') and (Batch eq '@{replace(variables('vBatch'),'''','''''')}') and (UOM eq '@{replace(variables('vUOM'),'''','''''')}') and (IsActive eq true)
 ```
 
 **Note:** If using Location field, add to filter:
 
 ```powerautomate
-(PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (Location eq '@{variables('vLoc')}') and (IsActive eq true)
+(PartNumber eq '@{replace(variables('vPart'),'''','''''')}') and (Batch eq '@{replace(variables('vBatch'),'''','''''')}') and (UOM eq '@{replace(variables('vUOM'),'''','''''')}') and (Location eq '@{replace(variables('vLoc'),'''','''''')}') and (IsActive eq true)
 ```
 
 - Top Count: 1
@@ -175,52 +175,71 @@ Add **"Condition"** action:
 
 In the **Yes** branch:
 
-#### Step 8a: Lock Record (Optional for high concurrency)
+#### Step 8a: Capture ETag for Optimistic Locking
 
-Add **"Update item - SharePoint"** action:
+Add **"Compose"** action:
 
-**Action Name:** "Lock On-Hand Record"
+**Action Name:** "Capture ETag"
+
+**Inputs:**
+```powerautomate
+@{first(body('Get_On-Hand_for_Part+Batch')?['value'])?['@odata.etag']}
+```
+
+#### Step 8a2: Store Original Title
+
+Add **"Initialize variable"** action:
+
+**Name:** vOriginalTitle
+**Type:** String
+**Value:** `@{first(body('Get_On-Hand_for_Part+Batch')?['value'])?['Title']}`
+
+#### Step 8b: Update with New Quantity (Using ETag)
+
+Add **"Send an HTTP request to SharePoint"** action:
+
+**Action Name:** "Update Existing On-Hand with ETag"
 
 **Configure:**
 
 - Site Address: `@{parameters('SharePointSiteUrl')}`
-- List Name: On-Hand Material
-- Id: `first(body('Get_On-Hand_for_Part+Batch')?['value'])?['ID']`
-- Fields:
-  - Title: `LOCKED-@{variables('vFlowRunId')}`
-- **Settings:**
-  - Retry Policy: None (fail fast if locked)
+- Method: POST
+- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch')?['value'])?['ID']})`
+- Headers:
+  - IF-MATCH: `@{outputs('Capture_ETag')}`
+  - X-HTTP-Method: MERGE
+  - Content-Type: application/json;odata=verbose
+- Body:
+```json
+{
+  "__metadata": {
+    "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
+  },
+  "Title": "@{variables('vOriginalTitle')}",
+  "OnHandQty": @{add(float(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']), float(variables('vQty')))},
+  "LastMovementAt": "@{utcNow()}",
+  "LastMovementType": "Receive",
+  "LastMovementRefId": "@{variables('vId')}",
+  "IsActive": true
+}
+```
 
-#### Step 8b: Update with New Quantity
+**Note:** If this action fails with HTTP 412 (Precondition Failed), it means another flow has modified the record. Configure run after to handle this case.
 
-Add **"Update item - SharePoint"** action:
+#### Step 8c: Handle Concurrency Conflict (Configure Run After)
 
-**Action Name:** "Update Existing On-Hand"
+Add **"Condition"** action:
 
-**Configure:**
+**Configure Run After:** Set to run when "Update Existing On-Hand with ETag" has failed
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
-- List Name: On-Hand Material
-- Id: `first(body('Get_On-Hand_for_Part+Batch')?['value'])?['ID']`
-- Fields:
-  - Title: ` ` (clear lock)
-  - OnHandQty:
+**Condition:** `@equals(outputs('Update_Existing_On-Hand_with_ETag')['statusCode'], 412)`
 
-```text
-    add(
-      float(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']),
-      float(variables('vQty'))
-    )
-    ```
+**If Yes (Conflict):**
+- Add a **"Delay"** action: 2 seconds
+- Add **"Terminate"** action with Status: Failed and Message: "Concurrency conflict - please retry"
 
-  - LastMovementAt: `utcNow()`
-  - LastMovementType: `Receive`
-  - LastMovementRefId: `@{variables('vId')}`
-  - IsActive: `true`
-- **Settings:**
-  - Retry Policy: Exponential
-  - Count: 3
-  - Interval: PT10S
+**If No (Other Error):**
+- Add **"Terminate"** action with Status: Failed and Message: `@{body('Update_Existing_On-Hand_with_ETag')}`
 
 ### Step 9: Configure NO Branch (Create New)
 
@@ -345,7 +364,7 @@ Add **"Compose"** action at the end:
 {
   "FlowRunId": "@{variables('vFlowRunId')}",
   "TransactionId": "@{variables('vId')}",
-  "ProcessingTime": "@{dateDifference(workflow()?['run']?['startTime'], utcNow())}",
+  "ProcessingTimeSeconds": "@{div(sub(ticks(utcNow()), ticks(workflow()?['run']?['startTime'])), 10000000)}",
   "PartNumber": "@{variables('vPart')}",
   "Quantity": @{variables('vQty')},
   "Success": @{variables('vTransactionSuccess')}

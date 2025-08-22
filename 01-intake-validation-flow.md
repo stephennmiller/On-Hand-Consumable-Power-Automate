@@ -16,7 +16,6 @@ Validates all new Tech Transaction entries, ensuring data quality and business r
 - **Concurrency Control:** On
 - **Degree of Parallelism:** 1
 - **Retry Policy:** Default (exponential backoff)
-- **Run After Configuration:** Continue on timeout
 
 ## Step-by-Step Build Instructions
 
@@ -31,7 +30,6 @@ Validates all new Tech Transaction entries, ensuring data quality and business r
    - List Name: Tech Transactions
 6. **Trigger Settings:**
    - Click three dots → Settings
-   - Split On: Off (to prevent array splitting)
    - Concurrency: 1 (sequential processing)
 
 ### Step 2: Add Error Handling Scope
@@ -137,7 +135,7 @@ Add **"Get items - SharePoint"** action:
 - Filter Query:
 
 ```powerautomate
-PartNumber eq '@{variables('vPart')}' and Batch eq '@{variables('vBatch')}' and abs(Qty - @{variables('vQty')}) lt 0.01 and Created ge '@{addMinutes(utcNow(), -1)}' and ID ne @{triggerBody()?['ID']}
+PartNumber eq '@{replace(variables('vPart'),'''','''''')}' and Batch eq '@{replace(variables('vBatch'),'''','''''')}' and Qty ge @{sub(float(variables('vQty')), 0.01)} and Qty le @{add(float(variables('vQty')), 0.01)} and Created ge '@{formatDateTime(addMinutes(utcNow(), -1), 'yyyy-MM-ddTHH:mm:ssZ')}' and ID ne @{triggerBody()?['ID']}
 ```
 
 - Top Count: 1
@@ -181,7 +179,7 @@ Add **"Condition"** action:
 - Add **"Terminate"** action
   - Status: Succeeded
 
-### Step 4: Validate Quantity
+### Step 6: Validate Quantity
 
 Add **"Condition"** action (outside previous condition):
 
@@ -194,11 +192,11 @@ Add **"Condition"** action (outside previous condition):
 **If No:**
 
 - Add **"Update item - SharePoint"** action
-- Configure same as Step 3 but with:
+- Configure same as Step 5 but with:
   - PostMessage: `Quantity must be greater than 0`
 - Add **"Terminate"** action
 
-### Step 5: Validate Part Number
+### Step 7: Validate Part Number
 
 Add **"Condition"** action:
 
@@ -218,7 +216,7 @@ Add **"Condition"** action:
 - Update item with PostMessage: `PartNumber is required`
 - Terminate
 
-### Step 6: Validate Batch
+### Step 8: Validate Batch
 
 Add **"Condition"** action:
 
@@ -235,7 +233,7 @@ Add **"Condition"** action:
 - Update item with PostMessage: `Batch is required`
 - Terminate
 
-### Step 7: Validate UOM
+### Step 9: Validate UOM
 
 Add **"Condition"** action:
 
@@ -252,7 +250,7 @@ Add **"Condition"** action:
 - Update item with PostMessage: `UOM is required`
 - Terminate
 
-### Step 8: Validate PO for Issues
+### Step 10: Validate PO for Issues
 
 Add **"Condition"** action:
 
@@ -264,7 +262,7 @@ Add **"Condition"** action:
 
 **If Yes:**
 
-#### Step 8a: Check PO Provided
+#### Step 10a: Check PO Provided
 
 Add **"Condition"** inside Yes branch:
 
@@ -279,9 +277,9 @@ Add **"Condition"** inside Yes branch:
 - Update item with PostMessage: `PONumber is required for Issue transactions`
 - Terminate
 
-#### Step 8b: Fetch PO Record with Retry
+#### Step 10b: Fetch PO Record with Retry
 
-Add **"Get items - SharePoint"** action (in Yes of 8a):
+Add **"Get items - SharePoint"** action (in Yes of 10a):
 
 **Configure:**
 
@@ -295,7 +293,7 @@ Add **"Get items - SharePoint"** action (in Yes of 8a):
   - Interval: PT10S
   - Maximum Interval: PT1H
 
-#### Step 8c: Validate PO Exists and Open
+#### Step 10c: Validate PO Exists and Open
 
 Add **"Condition"** action:
 
@@ -313,7 +311,7 @@ Add **"Condition"** action:
 - Update item with PostMessage: `PO not found or is closed`
 - Terminate
 
-### Step 9: Mark as Validated
+### Step 11: Mark as Validated
 
 Add **"Update item - SharePoint"** action (at the end of Try scope):
 
@@ -331,7 +329,7 @@ Add **"Update item - SharePoint"** action (at the end of Try scope):
   - Count: 3
   - Interval: PT5S
 
-### Step 10: Add Error Handling Scope
+### Step 12: Add Error Handling Scope
 
 Add **"Scope"** action named **"Catch - Error Handling"**
 
@@ -342,7 +340,7 @@ Add **"Scope"** action named **"Catch - Error Handling"**
 
 Inside Catch scope:
 
-#### Step 10a: Log Error
+#### Step 12a: Log Error
 
 Add **"Create item - SharePoint"** action:
 
@@ -354,13 +352,13 @@ Add **"Create item - SharePoint"** action:
 - List Name: Flow Error Log
 - Fields:
   - FlowName: `TT - Intake Validate`
-  - ErrorMessage: `@{concat('Error validating transaction ID: ', triggerBody()?['ID'], ' - ', result('Try_-_Main_Logic'))}`
-  - StackTrace: `@{body('Try_-_Main_Logic')}`
+  - ErrorMessage: `@{concat('Error validating transaction ID: ', triggerBody()?['ID'], ' - ', substring(string(result('Try_-_Main_Logic')),0,min(4000,length(string(result('Try_-_Main_Logic'))))))}`
+  - StackTrace: `@{variables('vFlowRunId')}`
   - RecordId: `@{triggerBody()?['ID']}`
   - Severity: `Critical`
   - Timestamp: `utcNow()`
 
-#### Step 10b: Update Transaction with Error
+#### Step 12b: Update Transaction with Error
 
 Add **"Update item - SharePoint"** action:
 
@@ -374,7 +372,7 @@ Add **"Update item - SharePoint"** action:
   - PostMessage: `System error during validation. Admin notified. Run ID: @{variables('vFlowRunId')}`
   - PostedAt: `utcNow()`
 
-#### Step 10c: Send Alert Email
+#### Step 12c: Send Alert Email
 
 Add **"Send an email (V2)"** action:
 

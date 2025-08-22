@@ -196,10 +196,7 @@ Add **"Condition"**: Check if items returned
 
 **WARNING:** Only use if you're certain about data recovery
 
-Add **"Send an HTTP request to SharePoint"** to batch delete:
-
-- Method: POST
-- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items`
+**Note:** Batch deletion requires the `_api/$batch` endpoint with proper formatting. For simplicity, use a loop to delete items individually or implement the batch format as documented in Microsoft's SharePoint REST API documentation.
 
 ### Step 5: Process Transactions with Pagination
 
@@ -274,7 +271,7 @@ Add **"Apply to each"** control:
 **Settings:**
 
 - Concurrency: On
-- Degree of Parallelism: 20
+- Degree of Parallelism: 4
 
 Inside the loop:
 

@@ -117,7 +117,7 @@ Add **"Get items - SharePoint"** action:
 
 - Site Address: Your site
 - List Name: Parts
-- Filter Query: `PartNumber eq '@{variables('vPartNumber')}'`
+- Filter Query: `PartNumber eq '@{replace(variables('vPartNumber'),'''','''''')}''`
 - Top Count: 1
 
 ### Step 6: Check if Part Found
@@ -148,15 +148,7 @@ Add **"Update item - SharePoint"** action:
 - Id: `triggerBody()?['ID']`
 - Fields to Update:
   - Description: `first(body('Get_Part_from_Master')?['value'])?['Description']`
-  - UOM: `first(body('Get_Part_from_Master')?['value'])?['UOM']`
-
-**Note:** Only populate UOM if the field is currently empty:
-
-Add another condition before updating to check if UOM is empty:
-
-```powerautomate
-@equals(length(coalesce(triggerBody()?['UOM'], '')), 0)
-```
+  - UOM: `if(equals(length(coalesce(triggerBody()?['UOM'], '')), 0), first(body('Get_Part_from_Master')?['value'])?['UOM'], triggerBody()?['UOM'])`
 
 ### Step 8: Optional - Log Part Not Found (In NO Branch of Step 6)
 
@@ -299,6 +291,32 @@ This flow should complete BEFORE validation flow:
 - This flow only runs when PostStatus is empty
 - Validation flow sets PostStatus immediately
 - No overlap or loop risk
+
+### Additional Race Condition Prevention
+
+To ensure the Validation flow doesn't run before Autofill completes, add a trigger condition to the Validation flow:
+
+**In the Validation Flow Trigger Settings:**
+
+Add Trigger Condition:
+```powerautomate
+@or(
+  not(equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), '')),
+  greater(length(coalesce(triggerBody()?['Description'], '')), 0)
+)
+```
+
+This ensures Validation flow only runs when:
+- PostStatus is NOT empty (already processed), OR
+- Description field has been populated (Autofill has run)
+
+**Alternative Approach:**
+
+Set both flows to:
+- Concurrency Control: On
+- Degree of Parallelism: 1
+
+This ensures sequential processing of each transaction.
 
 ## Next Steps
 

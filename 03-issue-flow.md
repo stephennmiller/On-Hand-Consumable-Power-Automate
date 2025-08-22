@@ -26,7 +26,6 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 - **Degree of Parallelism:** 1 (critical for stock accuracy)
 - **Retry Policy:** Exponential backoff
 - **Timeout:** PT5M (5 minutes)
-- **Run Priority:** High (issues before receives)
 
 ## Step-by-Step Build Instructions
 
@@ -199,24 +198,73 @@ Add **"Set variable"** action in the YES branch:
 - Name: vOriginalQty
 - Value: `float(first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['OnHandQty'])`
 
-### Step 9: Attempt Lock (Optimistic Locking)
+### Step 9: Capture ETag and Original Data
 
-Add **"Update item - SharePoint"** action:
+Add **"Compose"** action:
 
-**Action Name:** "Lock On-Hand Record"
+**Action Name:** "Capture ETag"
+
+**Inputs:**
+```powerautomate
+@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['@odata.etag']}
+```
+
+Add **"Initialize variable"** action:
+
+**Name:** vOriginalTitle
+**Type:** String
+**Value:** `@{coalesce(first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['Title'], '')}`
+
+Add **"Initialize variable"** action:
+
+**Name:** vLockAcquired
+**Type:** Boolean
+**Value:** `false`
+
+### Step 10: Attempt Optimistic Lock with ETag
+
+Add **"Send an HTTP request to SharePoint"** action:
+
+**Action Name:** "Lock On-Hand with ETag"
 
 **Configure:**
 
 - Site Address: `@{parameters('SharePointSiteUrl')}`
-- List Name: On-Hand Material
-- Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
-- Fields:
-  - Title: `LOCKED-@{variables('vFlowRunId')}-@{utcNow('yyyyMMddHHmmss')}`
-- **Settings:**
-  - Retry Policy: None (fail fast if already locked)
-  - Configure run after: Continue only if previous action succeeded
+- Method: POST
+- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']})`
+- Headers:
+  - IF-MATCH: `@{outputs('Capture_ETag')}`
+  - X-HTTP-Method: MERGE
+  - Content-Type: application/json;odata=verbose
+- Body:
+```json
+{
+  "__metadata": {
+    "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
+  },
+  "Title": "LOCKED-@{variables('vFlowRunId')}-@{utcNow('yyyyMMddHHmmss')}"
+}
+```
 
-### Step 10: Compute New Quantity
+**Settings:**
+- Retry Policy: None
+- Configure run after: Continue if succeeded OR failed
+
+### Step 10a: Check Lock Success
+
+Add **"Set variable"** action:
+
+**Name:** vLockAcquired
+**Value:** `@{if(equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 200), true, false)}`
+
+Add **"Condition"** action:
+
+**Condition:** `@equals(variables('vLockAcquired'), false)`
+
+**If Yes (Lock Failed):**
+- Add **"Terminate"** action with Status: Failed and Message: "Could not acquire lock - concurrent modification detected"
+
+### Step 11: Compute New Quantity
 
 Add **"Compose"** action:
 
@@ -231,7 +279,7 @@ Add **"Compose"** action:
 )
 ```
 
-### Step 11: Check Sufficient Stock
+### Step 12: Check Sufficient Stock
 
 Add **"Condition"** action:
 
@@ -243,15 +291,31 @@ Add **"Condition"** action:
 
 **If No:**
 
-#### Release Lock First
+#### Release Lock First (Only if Acquired)
 
-Add **"Update item - SharePoint"** action:
+Add **"Condition"** action:
+
+**Condition:** `@equals(variables('vLockAcquired'), true)`
+
+**If Yes:**
+
+Add **"Send an HTTP request to SharePoint"** action:
 
 - Site Address: `@{parameters('SharePointSiteUrl')}`
-- List Name: On-Hand Material
-- Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
-- Fields:
-  - Title: ` ` (clear lock)
+- Method: POST
+- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']})`
+- Headers:
+  - X-HTTP-Method: MERGE
+  - Content-Type: application/json;odata=verbose
+- Body:
+```json
+{
+  "__metadata": {
+    "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
+  },
+  "Title": "@{variables('vOriginalTitle')}"
+}
+```
 
 #### Then Update Transaction
 
@@ -271,42 +335,48 @@ Add **"Update item - SharePoint"** action:
 - Add **"Terminate"** action
   - Status: Succeeded
 
-### Step 12: Update On-Hand with Unlock (In YES Branch)
+### Step 13: Update On-Hand with Unlock (In YES Branch)
 
-Add **"Update item - SharePoint"** action:
+Add **"Send an HTTP request to SharePoint"** action:
 
 **Action Name:** "Update On-Hand Qty and Release Lock"
 
 **Configure:**
 
 - Site Address: `@{parameters('SharePointSiteUrl')}`
-- List Name: On-Hand Material
-- Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
-- Fields:
-  - Title: ` ` (clear lock)
-  - OnHandQty: `@{outputs('Compute_New_Qty')}`
-  - LastMovementAt: `utcNow()`
-  - LastMovementType: `Issue`
-  - LastMovementRefId: `@{variables('vId')}`
-  - IsActive:
-
-```powerautomate
-    @if(greater(outputs('Compute_New_Qty'), 0), true, false)
-    ```
+- Method: POST
+- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']})`
+- Headers:
+  - X-HTTP-Method: MERGE
+  - Content-Type: application/json;odata=verbose
+- Body:
+```json
+{
+  "__metadata": {
+    "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
+  },
+  "Title": "@{variables('vOriginalTitle')}",
+  "OnHandQty": @{outputs('Compute_New_Qty')},
+  "LastMovementAt": "@{utcNow()}",
+  "LastMovementType": "Issue",
+  "LastMovementRefId": "@{variables('vId')}",
+  "IsActive": @{if(greater(outputs('Compute_New_Qty'), 0), true, false)}
+}
+```
 
 - **Settings:**
   - Retry Policy: Exponential
   - Count: 3
   - Interval: PT10S
 
-### Step 13: Set Update Completed Flag
+### Step 14: Set Update Completed Flag
 
 Add **"Set variable"** action:
 
 - Name: vUpdateCompleted
 - Value: `true`
 
-### Step 14: Mark Transaction as Posted
+### Step 15: Mark Transaction as Posted
 
 Add **"Update item - SharePoint"** action:
 
@@ -326,7 +396,7 @@ Add **"Update item - SharePoint"** action:
   - Count: 3
   - Interval: PT5S
 
-### Step 15: Add Compensating Transaction Scope
+### Step 16: Add Compensating Transaction Scope
 
 Add **"Scope"** action named **"Compensate - Rollback on Failure"**
 
