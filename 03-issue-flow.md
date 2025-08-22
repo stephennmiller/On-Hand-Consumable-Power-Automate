@@ -142,13 +142,13 @@ Add **"Get items - SharePoint"** action:
 - Filter Query:
 
 ```powerautomate
-(PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (IsActive eq true)
+(PartNumber eq '@{replace(variables('vPart'),'''','''''')}') and (Batch eq '@{replace(variables('vBatch'),'''','''''')}') and (UOM eq '@{replace(variables('vUOM'),'''','''''')}') and (IsActive eq true)
 ```
 
 **Note:** If using Location field:
 
 ```powerautomate
-(PartNumber eq '@{variables('vPart')}') and (Batch eq '@{variables('vBatch')}') and (UOM eq '@{variables('vUOM')}') and (Location eq '@{variables('vLoc')}') and (IsActive eq true)
+(PartNumber eq '@{replace(variables('vPart'),'''','''''')}') and (Batch eq '@{replace(variables('vBatch'),'''','''''')}') and (UOM eq '@{replace(variables('vUOM'),'''','''''')}') and (Location eq '@{replace(variables('vLoc'),'''','''''')}') and (IsActive eq true)
 ```
 
 - Top Count: 1
@@ -302,7 +302,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: *
+  - IF-MATCH: `*`
 - Body:
 ```json
 {
@@ -345,7 +345,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: *
+  - IF-MATCH: `*`
 - Body:
 ```json
 {
@@ -457,7 +457,7 @@ Add **"Create item - SharePoint"** action:
 - List Name: Flow Error Log
 - Fields:
   - FlowName: `TT - Issue → OnHand Upsert`
-  - ErrorMessage: `@{result('Atomic_Transaction_-_Issue_Processing')}`
+  - ErrorMessage: `@{string(result('Atomic_Transaction_-_Issue_Processing'))}`
   - RecordId: `@{variables('vId')}`
   - Severity: `Critical`
   - Timestamp: `utcNow()`
@@ -589,7 +589,7 @@ This maintains a safety stock of 10 units.
 
 ```powerautomate
 @sub(
-  float(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']),
+  float(first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['OnHandQty']),
   float(variables('vQty'))
 )
 ```
@@ -603,7 +603,7 @@ This maintains a safety stock of 10 units.
 ### Format Error Message
 
 ```powerautomate
-Insufficient inventory. Available: @{first(body('Get_On-Hand_for_Part_and_Batch')?['value'])?['OnHandQty']}, Requested: @{variables('vQty')}
+Insufficient inventory. Available: @{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['OnHandQty']}, Requested: @{variables('vQty')}
 ```
 
 ## Next Steps

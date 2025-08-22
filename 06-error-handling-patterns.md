@@ -68,7 +68,7 @@ Add **"Compose"** action:
   "ErrorTime": "@{utcNow()}",
   "FlowName": "@{workflow()?['name']}",
   "RunId": "@{workflow()?['run']?['name']}",
-  "TryResult": "@{result('Try_-_Main_Logic')}",
+  "TryResult": "@{string(result('Try_-_Main_Logic'))}",
   "TryStatus": "@{actions('Try_-_Main_Logic')?['status']}",
   "TriggerData": "@{triggerBody()}"
 }
@@ -462,7 +462,7 @@ Reason: Prevent data corruption
   "properties": {
     "EventName": "FlowError",
     "FlowName": "@{workflow()?['name']}",
-    "ErrorType": "@{result('Try_-_Main_Logic')}",
+    "ErrorType": "@{string(result('Try_-_Main_Logic'))}",
     "Severity": "Error",
     "CustomDimensions": {
       "RunId": "@{workflow()?['run']?['name']}",

@@ -119,6 +119,7 @@ Add **"Get items - SharePoint"** action:
 - List Name: Parts
 - Filter Query: `PartNumber eq '@{replace(variables('vPartNumber'),'''','''''')}'`
 - Top Count: 1
+- **Select Query:** `PartNumber,Description,DefaultUOM,RequiresBatch,RequiresLocation`
 
 ### Step 6: Check if Part Found
 

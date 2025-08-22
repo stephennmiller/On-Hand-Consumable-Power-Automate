@@ -135,6 +135,7 @@ PartNumber eq '@{replace(variables('vPart'),'''','''''')}' and Batch eq '@{repla
 ```
 
 - Top Count: 1
+- **Select Query:** `ID,PartNumber,Batch,Qty,Created`
 
 **Add Condition:** "Is Duplicate?"
 
@@ -285,6 +286,7 @@ Add **"Get items - SharePoint"** action (in Yes of 10a):
 - List Name: PO List
 - Filter Query: `PONumber eq '@{replace(variables('vPO'), '''', '''''')}'`
 - Top Count: 1
+- **Select Query:** `PONumber,Status,VendorName,OrderDate`
 - **Settings:**
   - Retry Policy: Exponential
   - Count: 3
@@ -383,7 +385,7 @@ Add **"Send an email (V2)"** action:
 Flow: TT - Intake Validate
 Run ID: @{variables('vFlowRunId')}
 Transaction ID: @{triggerBody()?['ID']}
-Error: @{result('Try_-_Main_Logic')}
+Error: @{string(result('Try_-_Main_Logic'))}
 Time: @{utcNow()}
 
 Please investigate immediately.

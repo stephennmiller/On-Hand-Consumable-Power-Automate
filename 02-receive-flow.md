@@ -322,7 +322,7 @@ Add **"Create item - SharePoint"** action:
 - List Name: Flow Error Log
 - Fields:
   - FlowName: `TT - Receive → OnHand Upsert`
-  - ErrorMessage: `@{result('Transaction_-_Receive_Processing')}`
+  - ErrorMessage: `@{string(result('Transaction_-_Receive_Processing'))}`
   - RecordId: `@{variables('vId')}`
   - Severity: `Critical`
   - Timestamp: `utcNow()`

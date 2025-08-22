@@ -360,8 +360,8 @@ After processing all transactions:
 
 Add **"Select"** action to transform aggregations:
 
-- From: `variables('vAggregations')`
-- Map to update operations
+- From: `keys(variables('vAggregations'))`
+- Map: Each key to its update operation
 
 Add **"Compose"** to create batch size chunks (100 items each)
 
@@ -378,7 +378,8 @@ Inside loop:
      ```json
      {
        "Content-Type": "multipart/mixed; boundary=batch_boundary",
-       "Accept": "application/json"
+       "Accept": "application/json",
+       "X-RequestDigest": "@{body('Send_an_HTTP_request_to_SharePoint_-_Get_Request_Digest')?['d']?['GetContextWebInformation']?['FormDigestValue']}"
      }
      ```
 
@@ -410,7 +411,7 @@ Add **"Create item - SharePoint"** action:
 - List Name: Flow Error Log
 - Fields:
   - FlowName: `OH - Nightly Recalc`
-  - ErrorMessage: `Recalc failed: @{result('Try_-_Recalc_Process')}`
+  - ErrorMessage: `Recalc failed: @{string(result('Try_-_Recalc_Process'))}`
   - Severity: `Critical`
   - Timestamp: `utcNow()`
 
