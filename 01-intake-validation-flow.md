@@ -285,7 +285,7 @@ Add **"Get items - SharePoint"** action (in Yes of 10a):
 
 - Site Address: `@{parameters('SharePointSiteUrl')}`
 - List Name: PO List
-- Filter Query: `PONumber eq '@{variables('vPO')}'`
+- Filter Query: `PONumber eq '@{replace(variables('vPO'), '''', '''''')}'`
 - Top Count: 1
 - **Settings:**
   - Retry Policy: Exponential

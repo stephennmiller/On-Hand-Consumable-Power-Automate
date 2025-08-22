@@ -23,7 +23,6 @@ reviews:
     # Ruff for Python (if any Python scripts are added)
     ruff:
       enabled: false
-    
     # Biome for JavaScript/TypeScript (if any scripts are added)
     biome:
       enabled: false

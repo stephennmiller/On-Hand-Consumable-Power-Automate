@@ -117,7 +117,7 @@ Add **"Get items - SharePoint"** action:
 
 - Site Address: Your site
 - List Name: Parts
-- Filter Query: `PartNumber eq '@{replace(variables('vPartNumber'),'''','''''')}''`
+- Filter Query: `PartNumber eq '@{replace(variables('vPartNumber'),'''','''''')}'`
 - Top Count: 1
 
 ### Step 6: Check if Part Found

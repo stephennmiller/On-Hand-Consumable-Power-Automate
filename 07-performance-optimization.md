@@ -242,8 +242,9 @@ Schedule flows at different times:
 
 ### Flow Timeout Limits
 
-- **Standard:** 30 days total, 5 minutes per action
-- **Premium:** 30 days total, 2 hours per action
+- **Standard:** 30 days maximum flow run duration
+- **Default action timeout:** 5 minutes (can be extended in action settings)
+- **HTTP actions:** Can be configured up to 120 seconds
 
 ### Strategies for Long-Running Operations
 
@@ -397,15 +398,15 @@ Variables:
 At End of Flow:
 Compose: Performance Metrics
 {
-  "Duration": dateDifference(vStartTime, utcNow()),
-  "RecordsProcessed": vRecordCount,
-  "RecordsPerSecond": div(vRecordCount, dateDifference(...)),
+  "DurationSeconds": div(sub(ticks(utcNow()), ticks(variables('vStartTime'))), 10000000),
+  "RecordsProcessed": variables('vRecordCount'),
+  "RecordsPerSecond": div(variables('vRecordCount'), max(1, div(sub(ticks(utcNow()), ticks(variables('vStartTime'))), 10000000))),
   "FlowRun": workflow()?['run']?['name']
 }
 
 Log to Performance Tracking list
 
-```text
+```
 
 ### Key Metrics to Track
 

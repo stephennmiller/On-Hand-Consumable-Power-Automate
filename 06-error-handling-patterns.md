@@ -69,7 +69,7 @@ Add **"Compose"** action:
   "FlowName": "@{workflow()?['name']}",
   "RunId": "@{workflow()?['run']?['name']}",
   "TryResult": "@{result('Try_-_Main_Logic')}",
-  "TryBody": "@{body('Try_-_Main_Logic')}",
+  "TryBody": "@{outputs('Try_-_Main_Logic')?['body']}",
   "TriggerData": "@{triggerBody()}"
 }
 ```
@@ -130,10 +130,9 @@ For all SharePoint actions:
 {
   "type": "exponential",
   "count": 3,
-  "interval": "PT10S",
-  "maximumInterval": "PT1H"
+  "interval": "PT10S"
 }
-```text
+```
 
 ### Action-Specific Settings
 
@@ -143,8 +142,7 @@ For all SharePoint actions:
 {
   "type": "exponential",
   "count": 5,
-  "interval": "PT30S",
-  "maximumInterval": "PT5M"
+  "interval": "PT30S"
 }
 ```
 
@@ -156,7 +154,7 @@ For all SharePoint actions:
   "count": 2,
   "interval": "PT5S"
 }
-```text
+```
 
 #### Lock Acquisition (Fail Fast)
 
@@ -366,26 +364,26 @@ Reason: Prevent data corruption
 
 1. **Identify Scope**
 
-```text
+   ```text
    Query: PostStatus eq 'Error' and Created gt '[Date]'
    Action: Export to Excel for analysis
    ```
 
-1. **Categorize Errors**
+2. **Categorize Errors**
    - Group by error message
    - Identify patterns
    - Prioritize by impact
 
-1. **Bulk Retry**
+3. **Bulk Retry**
 
-```text
+   ```text
    For each error record:
      Reset PostStatus to ''
      Clear PostMessage
      Flow will reprocess
    ```
 
-1. **Verify Recovery**
+4. **Verify Recovery**
    - Check all retried records
    - Validate data consistency
    - Update documentation
@@ -472,7 +470,7 @@ Reason: Prevent data corruption
     }
   }
 }
-```text
+```
 
 ### Log Analytics Queries
 

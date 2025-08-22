@@ -255,7 +255,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 Add **"Set variable"** action:
 
 **Name:** vLockAcquired
-**Value:** `@{if(equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 200), true, false)}`
+**Value:** `@{if(equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 204), true, false)}`
 
 Add **"Condition"** action:
 
@@ -313,7 +313,8 @@ Add **"Send an HTTP request to SharePoint"** action:
   "__metadata": {
     "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
   },
-  "Title": "@{variables('vOriginalTitle')}"
+  "Title": "@{variables('vOriginalTitle')}",
+  "IF-MATCH": "*"
 }
 ```
 
@@ -360,7 +361,8 @@ Add **"Send an HTTP request to SharePoint"** action:
   "LastMovementAt": "@{utcNow()}",
   "LastMovementType": "Issue",
   "LastMovementRefId": "@{variables('vId')}",
-  "IsActive": @{if(greater(outputs('Compute_New_Qty'), 0), true, false)}
+  "IsActive": @{if(greater(outputs('Compute_New_Qty'), 0), true, false)},
+  "IF-MATCH": "*"
 }
 ```
 
@@ -428,7 +430,7 @@ Add **"Update item - SharePoint"** action:
 - List Name: On-Hand Material
 - Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
 - Fields:
-  - Title: ` ` (clear any lock)
+  - Title: `@{variables('vOriginalTitle')}` (restore original title)
   - OnHandQty: `@{variables('vOriginalQty')}`
   - LastMovementAt: `utcNow()`
   - LastMovementType: `Rollback-Issue`
@@ -474,7 +476,7 @@ Add **"Update item - SharePoint"** action:
 - Id: `@{variables('vId')}`
 - Fields:
   - PostStatus: `Error`
-  - PostMessage: `Failed to process issue. Rollback @{if(variables('vUpdateCompleted'), 'completed', 'not needed')}. Run: @{variables('vFlowRunId')}`
+  - PostMessage: `Failed to process issue. Rollback @{if(variables('vUpdateCompleted'), 'completed', 'not needed')}. Run: @{workflow()?['run']?['name']}`
   - PostedAt: `utcNow()`
 
 ##### Send Critical Alert
@@ -606,7 +608,7 @@ This maintains a safety stock of 10 units.
 ### Format Error Message
 
 ```powerautomate
-Insufficient inventory. Available: @{first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']}, Requested: @{variables('vQty')}
+Insufficient inventory. Available: @{first(body('Get_On-Hand_for_Part_and_Batch')?['value'])?['OnHandQty']}, Requested: @{variables('vQty')}
 ```
 
 ## Next Steps

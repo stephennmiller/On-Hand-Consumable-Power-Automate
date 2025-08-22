@@ -270,8 +270,7 @@ Add **"Apply to each"** control:
 
 **Settings:**
 
-- Concurrency: On
-- Degree of Parallelism: 4
+- Concurrency: Off (to prevent race conditions when updating shared variables)
 
 Inside the loop:
 
