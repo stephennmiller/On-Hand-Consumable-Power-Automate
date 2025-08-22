@@ -277,6 +277,8 @@ Add **"Condition"** inside Yes branch:
 
 Add **"Get items - SharePoint"** action (in Yes of 10a):
 
+**Action Name:** "Get PO Record"
+
 **Configure:**
 
 - Site Address: `@{parameters('SharePointSiteUrl')}`
@@ -296,8 +298,8 @@ Add **"Condition"** action:
 
 ```powerautomate
 @and(
-  greater(length(body('Get_items')?['value']), 0),
-  equals(first(body('Get_items')?['value'])?['IsOpen'], true)
+  greater(length(body('Get_PO_Record')?['value']), 0),
+  equals(first(body('Get_PO_Record')?['value'])?['IsOpen'], true)
 )
 ```
 

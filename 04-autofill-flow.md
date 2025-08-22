@@ -300,14 +300,14 @@ To ensure the Validation flow doesn't run before Autofill completes, add a trigg
 
 Add Trigger Condition:
 ```powerautomate
-@or(
-  not(equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), '')),
+@and(
+  equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), ''),
   greater(length(coalesce(triggerBody()?['Description'], '')), 0)
 )
 ```
 
 This ensures Validation flow only runs when:
-- PostStatus is NOT empty (already processed), OR
+- PostStatus is empty (not yet processed), AND
 - Description field has been populated (Autofill has run)
 
 **Alternative Approach:**

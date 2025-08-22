@@ -302,14 +302,14 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
+  - IF-MATCH: *
 - Body:
 ```json
 {
   "__metadata": {
     "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
   },
-  "Title": "@{variables('vOriginalTitle')}",
-  "IF-MATCH": "*"
+  "Title": "@{variables('vOriginalTitle')}"
 }
 ```
 
@@ -345,6 +345,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
+  - IF-MATCH: *
 - Body:
 ```json
 {
@@ -356,8 +357,7 @@ Add **"Send an HTTP request to SharePoint"** action:
   "LastMovementAt": "@{utcNow()}",
   "LastMovementType": "Issue",
   "LastMovementRefId": "@{variables('vId')}",
-  "IsActive": @{if(greater(outputs('Compute_New_Qty'), 0), true, false)},
-  "IF-MATCH": "*"
+  "IsActive": @{if(greater(outputs('Compute_New_Qty'), 0), true, false)}
 }
 ```
 
