@@ -1,0 +1,225 @@
+# CodeRabbit Configuration for Power Automate Documentation
+# This configuration optimizes CodeRabbit's review for Power Automate guides and documentation
+
+# Review Settings
+reviews:
+  # Enable auto-review for all pull requests
+  auto_review:
+    enabled: true
+    # Review drafts to catch issues early
+    drafts: true
+    # Review based on changed files
+    base_branches:
+      - main
+      - master
+      - develop
+
+  # High-level review instructions
+  high_level_summary: true
+  
+  # Provide detailed feedback
+  review_status: true
+  
+  # Enable all review tools
+  tools:
+    # Check for broken links in markdown
+    markdownlint: true
+    # Validate JSON/YAML in code blocks
+    json_validation: true
+    # Check for sensitive data
+    secrets_detection: true
+    # Spell checking for documentation
+    spelling: true
+    # Grammar checking
+    language_tool: true
+
+  # Review scope
+  path_filters:
+    # Focus on documentation files
+    - "**/*.md"
+    - "**/*.txt"
+    - "**/*.yaml"
+    - "**/*.yml"
+    - "**/*.json"
+    - "**/README*"
+
+  # Ignore paths
+  path_ignores:
+    - "**/node_modules/**"
+    - "**/.git/**"
+    - "**/dist/**"
+    - "**/build/**"
+
+# Documentation-specific settings
+documentation:
+  # Check for documentation completeness
+  required_sections:
+    - "## Purpose"
+    - "## Flow Configuration"
+    - "## Step-by-Step"
+    - "## Testing"
+    - "## Troubleshooting"
+  
+  # Ensure code blocks have language specifications
+  code_block_languages:
+    - powerautomate
+    - json
+    - yaml
+    - javascript
+    - text
+
+# Power Automate specific checks
+power_automate:
+  # Key patterns to look for in documentation
+  required_patterns:
+    - "Trigger:"
+    - "Actions:"
+    - "Error Handling:"
+    - "Performance:"
+  
+  # Best practices to enforce
+  best_practices:
+    - "Try-Catch-Finally pattern"
+    - "Retry policies"
+    - "Pagination"
+    - "Throttling protection"
+    - "Concurrency control"
+
+# Language and style
+language:
+  # Documentation should be clear and professional
+  style_guide: "technical"
+  
+  # Enforce consistency
+  terminology:
+    preferred:
+      - "Power Automate" # not "Flow" or "MS Flow"
+      - "SharePoint" # not "SP"
+      - "On-Hand" # not "OnHand" or "on hand"
+      - "Tech Transactions" # not "Technical Transactions"
+    
+    avoid:
+      - "Click here"
+      - "Simply"
+      - "Just"
+      - "Obviously"
+
+# Comments and feedback style
+comments:
+  # Constructive feedback
+  tone: "constructive"
+  
+  # Group similar issues
+  grouping: true
+  
+  # Provide examples when suggesting improvements
+  examples: true
+  
+  # Add links to relevant documentation
+  doc_links: true
+
+# Issue labeling
+labels:
+  # Auto-apply labels based on file changes
+  auto_labels:
+    - path: "**/*.md"
+      labels: ["documentation", "markdown"]
+    - path: "**/error-handling*.md"
+      labels: ["error-handling"]
+    - path: "**/performance*.md"
+      labels: ["performance"]
+    - path: "**/*flow*.md"
+      labels: ["power-automate", "flow"]
+    - path: ".coderabbit.yaml"
+      labels: ["config"]
+
+# Security and compliance
+security:
+  # Check for sensitive information
+  sensitive_data_check: true
+  
+  # Patterns to flag
+  sensitive_patterns:
+    - "password"
+    - "api_key"
+    - "secret"
+    - "token"
+    - "credential"
+    - "private_key"
+
+# Performance considerations for large PRs
+performance:
+  # Maximum files to review in detail
+  max_files: 50
+  
+  # Maximum lines per file
+  max_lines_per_file: 2000
+  
+  # Skip review for generated files
+  skip_generated: true
+
+# PR description requirements
+pr_description:
+  # Enforce PR templates
+  template_required: false
+  
+  # Minimum description length
+  min_length: 50
+  
+  # Required sections in PR description
+  required_sections:
+    - "Summary"
+    - "Changes"
+    - "Test Plan"
+
+# Custom review rules for Power Automate documentation
+custom_rules:
+  - name: "Check for Power Automate expressions"
+    pattern: "@\\{.*\\}"
+    message: "Ensure Power Automate expressions are properly formatted and explained"
+    severity: "info"
+  
+  - name: "Verify SharePoint list references"
+    pattern: "SharePoint.*[Ll]ist"
+    message: "Verify SharePoint list names match the schema in 00-overview.md"
+    severity: "warning"
+  
+  - name: "Check for error handling"
+    pattern: "Try.*Catch.*Finally"
+    message: "Good! Error handling pattern detected"
+    severity: "info"
+  
+  - name: "Pagination implementation"
+    pattern: "pagination|Do Until|Skip.*Top"
+    message: "Verify pagination handles >5000 items correctly"
+    severity: "warning"
+
+# Notifications
+notifications:
+  # Notify on review completion
+  on_review_complete: true
+  
+  # Notify on critical issues
+  on_critical_issues: true
+  
+  # Summary in PR comment
+  summary_comment: true
+
+# Advanced settings
+advanced:
+  # Enable learning from feedback
+  learning_mode: true
+  
+  # Use context from previous PRs
+  context_aware: true
+  
+  # Smart suggestions based on patterns
+  smart_suggestions: true
+  
+  # Check cross-references between files
+  cross_reference_check: true
+
+# Debug settings (set to false in production)
+debug:
+  enabled: false
+  verbose: false
