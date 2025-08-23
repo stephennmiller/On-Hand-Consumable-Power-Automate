@@ -31,6 +31,7 @@ This guide provides production-ready monitoring and alerting flows that ensure 2
 ## Required SharePoint Lists
 
 ### 1. Performance Metrics List
+
 ```
 Columns:
 - Title: Single line of text
@@ -49,6 +50,7 @@ Columns:
 ```
 
 ### 2. Alert Configuration List
+
 ```
 Columns:
 - Title: Single line of text
@@ -64,6 +66,7 @@ Columns:
 ```
 
 ### 3. System Health List
+
 ```
 Columns:
 - Title: Single line of text
@@ -79,6 +82,7 @@ Columns:
 ## Flow 1: Performance Monitoring Flow
 
 ### Trigger Configuration
+
 ```
 Type: Recurrence
 Frequency: Every 5 minutes
@@ -88,6 +92,7 @@ Time Zone: Your local time zone
 ### Step-by-Step Implementation
 
 #### Step 1: Initialize Variables
+
 ```json
 Variable: MetricsWindow
 Type: Integer
@@ -103,6 +108,7 @@ Value: []
 ```
 
 #### Step 2: Get Recent Flow Runs
+
 ```
 Action: Send an HTTP request to SharePoint
 Method: GET
@@ -113,6 +119,7 @@ Headers:
 ```
 
 #### Step 3: Parse and Analyze Performance Data
+
 ```
 Action: Select
 From: @{body('Get_Recent_Flow_Runs')['d']['results']}
@@ -142,6 +149,7 @@ Map:
 ```
 
 #### Step 4: Calculate Aggregated Metrics
+
 ```
 Expression for Average Duration:
 div(
@@ -181,6 +189,7 @@ div(
 ```
 
 #### Step 5: Store Metrics in SharePoint
+
 ```
 Action: Send an HTTP request to SharePoint
 Method: POST
@@ -204,6 +213,7 @@ Body:
 ```
 
 #### Step 6: Check Thresholds
+
 ```
 Action: Get items from SharePoint
 List: Alert Configuration
@@ -226,6 +236,7 @@ Action: Apply to each alert configuration
 ## Flow 2: Error Alerting Flow
 
 ### Trigger Configuration
+
 ```
 Type: When an item is created or modified
 List: Flow Run History
@@ -235,6 +246,7 @@ Filter: Status eq 'Failed'
 ### Step-by-Step Implementation
 
 #### Step 1: Get Error Details
+
 ```
 Action: Get item
 List: Flow Run History
@@ -242,6 +254,7 @@ Id: @{triggerBody()?['ID']}
 ```
 
 #### Step 2: Analyze Error Pattern
+
 ```
 Expression for Error Category:
 if(
@@ -275,6 +288,7 @@ if(
 ```
 
 #### Step 3: Check Alert Cooldown
+
 ```
 Action: Get items
 List: Alert Configuration
@@ -289,6 +303,7 @@ greater(
 ```
 
 #### Step 4: Send Teams Alert
+
 ```
 Action: Post adaptive card in Teams channel
 Team: Operations
@@ -366,6 +381,7 @@ Card:
 ```
 
 #### Step 5: Send Email Alert
+
 ```
 Action: Send an email (V2)
 To: @{join(body('Get_Alert_Recipients'), ';')}
@@ -418,6 +434,7 @@ Importance: @{variables('Severity')}
 ## Flow 3: Threshold Breach Notifications
 
 ### Trigger Configuration
+
 ```
 Type: Recurrence
 Frequency: Every 15 minutes
@@ -426,6 +443,7 @@ Frequency: Every 15 minutes
 ### Step-by-Step Implementation
 
 #### Step 1: Define Threshold Rules
+
 ```
 Variable: ThresholdRules
 Type: Array
@@ -463,6 +481,7 @@ Value:
 ```
 
 #### Step 2: Get Current Metrics
+
 ```
 Action: Send an HTTP request to SharePoint
 Method: GET
@@ -470,6 +489,7 @@ Uri: _api/web/lists/getbytitle('Performance Metrics')/items?$filter=Created ge d
 ```
 
 #### Step 3: Calculate Threshold Metrics
+
 ```
 Expression for Average Processing Time:
 div(
@@ -507,6 +527,7 @@ div(
 ```
 
 #### Step 4: Check Each Threshold
+
 ```
 Action: Apply to each threshold rule
   Source: @{variables('ThresholdRules')}
@@ -535,6 +556,7 @@ Action: Apply to each threshold rule
 ```
 
 #### Step 5: Create Consolidated Alert
+
 ```
 Action: Create HTML table
 From: @{variables('BreachedThresholds')}
@@ -563,6 +585,7 @@ Multiple performance thresholds have been breached:
 ## Flow 4: Daily Health Check Report
 
 ### Trigger Configuration
+
 ```
 Type: Recurrence
 Frequency: Daily
@@ -573,6 +596,7 @@ Time Zone: Your local time zone
 ### Step-by-Step Implementation
 
 #### Step 1: Initialize Report Variables
+
 ```
 Variable: ReportDate
 Type: String
@@ -588,6 +612,7 @@ Value: 100
 ```
 
 #### Step 2: Check Component Health
+
 ```
 Action: Parallel Branch
 
@@ -636,6 +661,7 @@ Branch 4: Check System Resources
 ```
 
 #### Step 3: Calculate Overall Health Score
+
 ```
 Expression:
 div(
@@ -650,6 +676,7 @@ div(
 ```
 
 #### Step 4: Generate Health Report
+
 ```
 Action: Compose HTML Report
 Input:
@@ -723,6 +750,7 @@ Input:
 ```
 
 #### Step 5: Send Report
+
 ```
 Action: Send an email (V2)
 To: Operations Team; Management
@@ -740,6 +768,7 @@ File Content: @{outputs('Compose_HTML_Report')}
 ## Flow 5: Real-Time Dashboard Updates
 
 ### Trigger Configuration
+
 ```
 Type: When an item is created or modified
 List: Performance Metrics
@@ -748,6 +777,7 @@ List: Performance Metrics
 ### Step-by-Step Implementation
 
 #### Step 1: Get Dashboard Configuration
+
 ```
 Action: Get item
 List: Dashboard Configuration
@@ -761,6 +791,7 @@ Parse configuration for:
 ```
 
 #### Step 2: Calculate Real-Time Metrics
+
 ```
 Expression for Rolling Average (Last Hour):
 div(
@@ -800,6 +831,7 @@ if(
 ```
 
 #### Step 3: Update Power BI Dataset
+
 ```
 Action: HTTP request to Power BI REST API
 Method: POST
@@ -823,6 +855,7 @@ Body:
 ```
 
 #### Step 4: Send WebSocket Update (for real-time display)
+
 ```
 Action: Send message to Azure SignalR
 Connection String: @{parameters('SignalRConnection')}
@@ -841,6 +874,7 @@ Arguments:
 ```
 
 #### Step 5: Update SharePoint Dashboard List
+
 ```
 Action: Update item
 List: Dashboard Metrics
@@ -857,18 +891,21 @@ Fields:
 ## Testing Procedures
 
 ### Test Scenario 1: Performance Degradation
+
 1. Simulate slow processing by adding delays to test flow
 2. Verify performance monitoring detects degradation
 3. Confirm threshold alerts trigger correctly
 4. Check dashboard updates reflect performance issues
 
 ### Test Scenario 2: Error Spike
+
 1. Force errors in test flow runs
 2. Verify error alerting triggers immediately
 3. Confirm cooldown period prevents alert spam
 4. Check error categorization accuracy
 
 ### Test Scenario 3: System Health Check
+
 1. Run daily health check manually
 2. Verify all components are checked
 3. Confirm report generation and distribution
@@ -877,6 +914,7 @@ Fields:
 ## Production Deployment Checklist
 
 ### Pre-Deployment
+
 - [ ] Create all required SharePoint lists
 - [ ] Configure alert recipients and channels
 - [ ] Set up Power BI workspace and datasets
@@ -885,6 +923,7 @@ Fields:
 - [ ] Document threshold values and escalation procedures
 
 ### Deployment
+
 - [ ] Import monitoring flows to production
 - [ ] Configure connections and authentication
 - [ ] Set appropriate run frequencies
@@ -893,6 +932,7 @@ Fields:
 - [ ] Test each flow individually
 
 ### Post-Deployment
+
 - [ ] Monitor first 24 hours closely
 - [ ] Verify alerts reach intended recipients
 - [ ] Confirm dashboard updates correctly
@@ -903,17 +943,20 @@ Fields:
 ## Maintenance Guidelines
 
 ### Daily Tasks
+
 - Review morning health report
 - Check for any critical alerts
 - Verify dashboard is updating
 
 ### Weekly Tasks
+
 - Review threshold effectiveness
 - Analyze false positive rate
 - Check alert recipient list accuracy
 - Review top errors and patterns
 
 ### Monthly Tasks
+
 - Analyze performance trends
 - Optimize alert rules
 - Clean up old metric data
@@ -923,18 +966,21 @@ Fields:
 ## Integration Points
 
 ### With Optimized Recalc Flow
+
 - Monitor checkpoint recovery operations
 - Track batch processing performance
 - Alert on circuit breaker state changes
 - Report on overall system throughput
 
 ### With Power BI Dashboard
+
 - Real-time metric streaming
 - Historical data analysis
 - Predictive analytics integration
 - Custom visualization support
 
 ### With Migration Process
+
 - Track parallel run comparisons
 - Monitor migration progress
 - Alert on data discrepancies
@@ -943,6 +989,7 @@ Fields:
 ## Advanced Features
 
 ### Predictive Alerting
+
 ```
 Expression for Trend Prediction:
 add(
@@ -961,6 +1008,7 @@ add(
 ```
 
 ### Adaptive Thresholds
+
 ```
 Expression for Dynamic Threshold:
 add(
@@ -973,6 +1021,7 @@ add(
 ```
 
 ### Correlation Analysis
+
 ```
 Expression for Correlation Detection:
 if(
@@ -997,6 +1046,7 @@ if(
 ## Troubleshooting Guide
 
 ### Alert Not Firing
+
 1. Check alert configuration is active
 2. Verify threshold values and operators
 3. Check cooldown period hasn't been triggered
@@ -1004,6 +1054,7 @@ if(
 5. Verify recipient configuration
 
 ### Dashboard Not Updating
+
 1. Check trigger is firing correctly
 2. Verify Power BI authentication
 3. Check dataset refresh settings
@@ -1011,6 +1062,7 @@ if(
 5. Verify SharePoint list permissions
 
 ### Performance Metrics Inaccurate
+
 1. Check calculation expressions
 2. Verify time window settings
 3. Review data filtering criteria

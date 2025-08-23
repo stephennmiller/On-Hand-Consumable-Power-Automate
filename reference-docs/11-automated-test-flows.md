@@ -35,6 +35,7 @@ This comprehensive testing framework ensures the On-Hand Consumable system maint
 ## Required SharePoint Lists
 
 ### 1. Test Cases List
+
 ```
 Columns:
 - Title: Single line of text
@@ -51,6 +52,7 @@ Columns:
 ```
 
 ### 2. Test Execution Results List
+
 ```
 Columns:
 - Title: Single line of text
@@ -67,6 +69,7 @@ Columns:
 ```
 
 ### 3. Test Data Repository List
+
 ```
 Columns:
 - Title: Single line of text
@@ -81,6 +84,7 @@ Columns:
 ```
 
 ### 4. Test Coverage Matrix List
+
 ```
 Columns:
 - Title: Single line of text
@@ -99,6 +103,7 @@ Columns:
 ### Master Unit Test Orchestrator Flow
 
 #### Trigger Configuration
+
 ```
 Type: Recurrence
 Frequency: Every 4 hours
@@ -106,6 +111,7 @@ Additional: Can be triggered manually for on-demand testing
 ```
 
 #### Step 1: Initialize Test Environment
+
 ```
 Variables:
 - TestRunID: @{guid()}
@@ -117,6 +123,7 @@ Variables:
 ```
 
 #### Step 2: Get Active Unit Tests
+
 ```
 Action: Get items from SharePoint
 List: Test Cases
@@ -125,6 +132,7 @@ Order by: Priority asc
 ```
 
 #### Step 3: Execute Each Unit Test
+
 ```
 Action: Apply to each test case
   Parallel Execution: No (sequential for dependency management)
@@ -140,6 +148,7 @@ Action: Apply to each test case
 ### Unit Test: Inventory Calculation Validation
 
 #### Test Setup
+
 ```
 Test Name: Test_Inventory_OnHand_Calculation
 Component: Recalc Engine
@@ -147,6 +156,7 @@ Priority: Critical
 ```
 
 #### Test Implementation
+
 ```
 Step 1: Prepare Test Data
 Variable: TestInventoryItem
@@ -203,6 +213,7 @@ Fields:
 ### Unit Test: Date Function Validation
 
 #### Test Implementation
+
 ```
 Test Cases Array:
 [
@@ -232,6 +243,7 @@ For each test case:
 ### Unit Test: Error Handling Validation
 
 #### Test Implementation
+
 ```
 Step 1: Test Null Handling
 Input: null
@@ -265,6 +277,7 @@ if(
 ### Integration Test Orchestrator
 
 #### Trigger Configuration
+
 ```
 Type: Manual trigger with inputs
 Inputs:
@@ -374,6 +387,7 @@ Step 4: Validate Response Handling
 ### Load Test Controller Flow
 
 #### Configuration
+
 ```
 Variables:
 - ConcurrentUsers: 100
@@ -383,6 +397,7 @@ Variables:
 ```
 
 #### Step 1: Initialize Load Test
+
 ```
 Action: Create Load Test Session
 SessionID: @{guid()}
@@ -397,6 +412,7 @@ Configuration:
 ```
 
 #### Step 2: Generate Load
+
 ```
 Action: Parallel Branch (10 branches for 10 users each)
 
@@ -512,12 +528,14 @@ Every hour:
 ### Regression Test Orchestrator
 
 #### Trigger Configuration
+
 ```
 Type: Before each deployment
 Also: Nightly scheduled run at 2 AM
 ```
 
 #### Test Selection Strategy
+
 ```
 Risk-Based Selection:
 High Risk: Run always (100%)
@@ -620,6 +638,7 @@ Verify upgrade procedures work
 ### Dynamic Test Data Generation Flow
 
 #### Configuration
+
 ```
 Variables:
 - DataTypes: ["Inventory", "Transactions", "Users", "Orders"]
@@ -629,6 +648,7 @@ Variables:
 ```
 
 #### Step 1: Generate Inventory Test Data
+
 ```
 Loop: Generate 1000 items
 Item Structure:
@@ -652,6 +672,7 @@ Edge Cases:
 ```
 
 #### Step 2: Generate Transaction Test Data
+
 ```
 Transaction Types: ["Receipt", "Issue", "Adjustment", "Transfer"]
 
@@ -675,6 +696,7 @@ Boundary Cases:
 ```
 
 #### Step 3: Generate Load Test Data
+
 ```
 Bulk Data Generation:
 Batch Size: 10,000 records
@@ -695,6 +717,7 @@ Performance Patterns:
 ```
 
 #### Step 4: Generate Invalid Test Data
+
 ```
 Invalid Data for Negative Testing:
 [
@@ -726,6 +749,7 @@ Invalid Data for Negative Testing:
 ### Automated Test Analysis Flow
 
 #### Step 1: Aggregate Test Results
+
 ```
 Action: Get all test executions from last run
 Group by: Test Type, Component, Status
@@ -738,6 +762,7 @@ Calculations:
 ```
 
 #### Step 2: Identify Failure Patterns
+
 ```
 Pattern Detection:
 FailurePattern = 
@@ -759,6 +784,7 @@ For each failure:
 ```
 
 #### Step 3: Generate Test Report
+
 ```
 HTML Report Structure:
 <!DOCTYPE html>
@@ -795,6 +821,7 @@ HTML Report Structure:
 ```
 
 #### Step 4: Send Notifications
+
 ```
 Condition-based notifications:
 
@@ -869,6 +896,7 @@ Production (Shadow):
 ## Testing Best Practices
 
 ### Test Design Principles
+
 ```
 1. Independence: Tests don't depend on each other
 2. Repeatability: Same result every execution
@@ -878,6 +906,7 @@ Production (Shadow):
 ```
 
 ### Test Maintenance
+
 ```
 Regular Review Cycle:
 Weekly:
@@ -897,6 +926,7 @@ Quarterly:
 ```
 
 ### Performance Optimization
+
 ```
 Test Execution Optimization:
 1. Parallel execution where possible
@@ -915,6 +945,7 @@ Resource Management:
 ## Integration with CI/CD
 
 ### Azure DevOps Integration
+
 ```
 Pipeline YAML:
 trigger:
@@ -942,6 +973,7 @@ stages:
 ```
 
 ### Deployment Gates
+
 ```
 Quality Gates:
 Pre-Deployment:
@@ -960,6 +992,7 @@ Post-Deployment:
 ## Monitoring and Metrics
 
 ### Test Metrics Dashboard
+
 ```
 Key Metrics:
 1. Test Coverage: (Tested Functions / Total Functions) * 100
@@ -970,6 +1003,7 @@ Key Metrics:
 ```
 
 ### Continuous Improvement
+
 ```
 Metrics Analysis:
 Weekly:

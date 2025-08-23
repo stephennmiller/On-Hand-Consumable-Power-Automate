@@ -484,6 +484,7 @@ Rows: @{outputs('Performance_Metrics')}
 ## Expression Reference Library
 
 ### Calculate Net Quantity Change
+
 ```
 if(
   equals(item()?['ActionType'], 'Issue'),
@@ -501,6 +502,7 @@ if(
 ```
 
 ### Exponential Backoff Calculation
+
 ```
 mul(
   pow(2, variables('RetryCount')),
@@ -509,6 +511,7 @@ mul(
 ```
 
 ### Batch Completion Check
+
 ```
 and(
   less(length(body('Parse_Transactions')?['value']), variables('BatchSize')),
@@ -517,6 +520,7 @@ and(
 ```
 
 ### Circuit Breaker Reset Check
+
 ```
 and(
   equals(first(body('Get_circuit_state')?['value'])?['State'], 'HalfOpen'),
@@ -528,6 +532,7 @@ and(
 ```
 
 ### Performance Threshold Calculation
+
 ```
 div(
   mul(
@@ -544,6 +549,7 @@ div(
 ## Error Handling Patterns
 
 ### Pattern 1: Retry with Exponential Backoff
+
 ```json
 Do Until:
 Control: @or(
@@ -562,6 +568,7 @@ Inside Loop:
 ```
 
 ### Pattern 2: Compensating Transaction
+
 ```json
 Scope - Main Transaction:
   [Primary actions]
@@ -573,6 +580,7 @@ Configure Run After - Has Failed:
 ```
 
 ### Pattern 3: Dead Letter Queue
+
 ```json
 On Error:
   SharePoint - Create item:
@@ -732,14 +740,16 @@ DATEDIFF(
 ### Common Issues and Solutions
 
 #### Issue: Flow Timeout
+
 **Symptom:** Flow runs longer than 30 days
-**Solution:** 
+**Solution:**
 - Reduce batch size
 - Increase concurrency
 - Check for infinite loops
 - Verify checkpoint updates
 
 #### Issue: SharePoint Throttling
+
 **Symptom:** 429 errors, slow response
 **Solution:**
 - Reduce concurrency level
@@ -748,6 +758,7 @@ DATEDIFF(
 - Schedule during off-peak
 
 #### Issue: Memory Exhaustion
+
 **Symptom:** Flow fails with no error
 **Solution:**
 - Reduce array sizes
@@ -756,6 +767,7 @@ DATEDIFF(
 - Process in smaller chunks
 
 #### Issue: Checkpoint Corruption
+
 **Symptom:** Flow restarts from beginning
 **Solution:**
 - Manually reset checkpoint
@@ -766,18 +778,21 @@ DATEDIFF(
 ## Maintenance Procedures
 
 ### Daily Tasks
+
 - Monitor error rate dashboard
 - Check circuit breaker status
 - Verify checkpoint progression
 - Review performance metrics
 
 ### Weekly Tasks
+
 - Analyze performance trends
 - Clear completed checkpoints
 - Archive processed transactions
 - Update concurrency settings
 
 ### Monthly Tasks
+
 - Review and optimize expressions
 - Update error thresholds
 - Performance baseline review
@@ -829,18 +844,21 @@ If critical issues occur:
 ## Security Considerations
 
 ### Connection Security
+
 - Use service accounts
 - Implement least privilege
 - Regular credential rotation
 - Audit connection usage
 
 ### Data Protection
+
 - Encrypt sensitive data
 - Mask PII in logs
 - Implement data retention
 - Regular security reviews
 
 ### Access Control
+
 - List-level permissions
 - Flow sharing restrictions
 - Admin approval required
@@ -849,18 +867,21 @@ If critical issues occur:
 ## Success Metrics
 
 ### Week 1 Goals
+
 - Zero data loss
 - <1% error rate
 - 100 transactions/second
 - Full checkpoint recovery
 
 ### Month 1 Goals
+
 - 99.9% availability
 - <0.1% error rate
 - Self-healing capability
 - Automated monitoring
 
 ### Quarter 1 Goals
+
 - 10x volume capacity
 - Zero manual intervention
 - Predictive maintenance
