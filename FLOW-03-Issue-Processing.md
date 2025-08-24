@@ -56,6 +56,8 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 
 Add **"Scope"** action named **"Atomic Transaction - Issue Processing"**
 
+**Note:** The internal name will be "Atomic_Transaction_-_Issue_Processing" which is referenced in error handling expressions.
+
 All subsequent steps (except final error handling) go inside this scope.
 
 ### Step 4: Initialize Variables
@@ -249,6 +251,8 @@ Add **"Send an HTTP request to SharePoint"** action:
 
 **Action Name:** "Lock_OnHand_with_ETag_Attempt"
 
+**Note:** Rename this action to exactly "Lock_OnHand_with_ETag_Attempt" to match expressions below.
+
 **Configure:**
 
 - Site Address: `@{environment('SharePointSiteUrl')}`
@@ -382,11 +386,12 @@ Add **"Send an HTTP request to SharePoint"** action:
   - PostStatus: `Error`
   - PostMessage:
 ```powerautomate
-Insufficient inventory. Available: @{variables('vOriginalQty')}, Requested: @{variables('vQty')}
+Insufficient inventory. Available: @{formatNumber(variables('vOriginalQty'), 'G', 'en-US')}, Requested: @{formatNumber(variables('vQty'), 'G', 'en-US')}
 ```
 - PostedAt: `utcNow()`
-- Add **"Terminate"** action
-  - Status: Succeeded
+
+Add **"Terminate"** action:
+- Status: Succeeded
 
 ### Step 13: Update On-Hand with Unlock (In YES Branch)
 
@@ -451,7 +456,7 @@ Add **"Update item - SharePoint"** action:
 - Id: `@{variables('vId')}`
 - Fields:
   - PostStatus: `Posted`
-  - PostMessage: `Successfully issued from inventory. Remaining: @{outputs('Compute_New_Qty')}`
+  - PostMessage: `Successfully issued from inventory. Remaining: @{formatNumber(outputs('Compute_New_Qty'), 'G', 'en-US')}`
   - PostedAt: `utcNow()`
 - **Settings:**
   - Retry Policy: Fixed Interval
@@ -690,7 +695,7 @@ This maintains a safety stock of 10 units.
 
 ```powerautomate
 @sub(
-  float(first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['OnHandQty']),
+  float(variables('vOriginalQty')),
   float(variables('vQty'))
 )
 ```
@@ -698,13 +703,13 @@ This maintains a safety stock of 10 units.
 ### Conditional IsActive
 
 ```powerautomate
-@if(greater(outputs('Compute_New_Qty'), 0), true, false)
+@{if(greater(outputs('Compute_New_Qty'), 0), true, false)}
 ```
 
-### Format Error Message
+### Format Error Message with Locale-Safe Numbers
 
 ```powerautomate
-Insufficient inventory. Available: @{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['OnHandQty']}, Requested: @{variables('vQty')}
+Insufficient inventory. Available: @{formatNumber(variables('vOriginalQty'), 'G', 'en-US')}, Requested: @{formatNumber(variables('vQty'), 'G', 'en-US')}
 ```
 
 ## Next Steps

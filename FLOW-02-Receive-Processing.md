@@ -56,6 +56,8 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 
 Add **"Scope"** action named **"Transaction - Receive Processing"**
 
+**Note:** The internal name will be "Transaction_-_Receive_Processing" which is referenced in error handling expressions.
+
 All subsequent steps go inside this scope for atomic transaction handling.
 
 ### Step 4: Initialize Variables
@@ -197,6 +199,8 @@ Add **"Send an HTTP request to SharePoint"** action:
 
 **Action Name:** "Update_Existing_OnHand_with_ETag"
 
+**Note:** Rename this action to exactly "Update_Existing_OnHand_with_ETag" to match expressions below.
+
 **Configure:**
 
 - Site Address: `@{environment('SharePointSiteUrl')}`
@@ -252,6 +256,8 @@ Add **"Condition"** action:
 In the **No** branch, add **"Create item - SharePoint"** action:
 
 **Action Name:** "Create_New_OnHand"
+
+**Note:** Rename this action to exactly "Create_New_OnHand" to match any expressions that reference it.
 
 **Configure:**
 
@@ -432,13 +438,16 @@ Add **"Compose"** action at the end:
 
 ## Expression Reference
 
-### Add Quantities
+### Add Quantities with Locale-Safe Formatting
 
 ```powerautomate
-add(
-  float(first(body('Get_OnHand_for_Part_Batch')?['value'])?['OnHandQty']),
-  float(variables('vQty'))
-)
+float(formatNumber(
+  add(
+    float(first(body('Get_OnHand_for_Part_Batch')?['value'])?['OnHandQty']),
+    float(variables('vQty'))
+  ),
+  'G', 'en-US'
+))
 ```
 
 ### Get First Item ID
