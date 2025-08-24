@@ -64,7 +64,7 @@ The flows use these specific column names:
 ### Required Environment Variables (Dataverse)
 
 - `environment('SharePointSiteUrl')` - Your SharePoint site URL
-- `environment('AdminEmail')` - Email address for critical alerts
+- `environment('AdminEmail')` - Email address for critical alerts (can be a distribution list or shared mailbox)
 
 **Note**: Power Automate cloud flows use `environment()` function for Dataverse environment variables, not `parameters()` which is used in Logic Apps.
 
@@ -81,7 +81,8 @@ Four lists must be created with exact column names:
 - Choice column access:
   - When SharePoint returns string: `triggerOutputs()?['body/PostStatus']`
   - When SharePoint returns object: `triggerOutputs()?['body/PostStatus']?['Value']`
-  - Example condition: `@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')`
+  - Example condition (object): `@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')`
+  - Example condition (string): `@equals(triggerOutputs()?['body/PostStatus'], 'Validated')`
 - Always escape single quotes in filters: `replace(variables('vPart'),'''','''''')`
 - Float conversion required for calculations: `float(variables('vQty'))`
 - Null handling with coalesce: `coalesce(triggerBody()?['FieldName'], '')`
@@ -99,6 +100,7 @@ Four lists must be created with exact column names:
 
 **PO List**:
 - Index: `PONumber` (required for ISSUE validation lookups)
+- Enforce unique values on `PONumber` (List settings → Validation/Indexed columns or via content type governance) to prevent duplicate POs
 
 ## Documentation Maintenance
 

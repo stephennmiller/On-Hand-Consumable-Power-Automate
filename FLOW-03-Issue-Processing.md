@@ -496,12 +496,11 @@ Add **"Condition"** action:
 
 First, get the current ETag for rollback:
 
-Add **"Get items - SharePoint"** action:
+Add **"Get item - SharePoint"** action:
 **Action Name:** "Get_ETag_For_Rollback"
 - Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: On-Hand Material
-- Filter Query: `ID eq @{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']}`
-- Top Count: 1
+- Id: `@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']}`
 
 Then, add **"Send an HTTP request to SharePoint"** action:
 
@@ -513,7 +512,7 @@ Then, add **"Send an HTTP request to SharePoint"** action:
 - Method: POST
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
-  - IF-MATCH: `@{first(body('Get_ETag_For_Rollback')?['value'])?['@odata.etag']}`
+  - IF-MATCH: `@{body('Get_ETag_For_Rollback')?['@odata.etag']}`
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
 - Body:

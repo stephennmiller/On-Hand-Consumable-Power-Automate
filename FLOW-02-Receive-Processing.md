@@ -243,6 +243,7 @@ Add **"Condition"** action:
 ```
 
 **If Yes (Retry Needed - 412/429/5xx):**
+(Ensure this condition/action group is configured to run after the HTTP action has Failed.)
 - Add a **"Delay"** action: 2 seconds
 - Add **"Get items - SharePoint"** to fetch latest values
 - Recalculate and update with new quantity
