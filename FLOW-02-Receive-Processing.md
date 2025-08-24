@@ -238,7 +238,7 @@ Add **"Condition"** action:
 - Consider logging conflict for audit
 
 **If No (Other Error):**
-- Add **"Terminate"** action with Status: Failed and Message: `@{body('Update_Existing_On-Hand_with_ETag')}`
+- Add **"Terminate"** action with Status: Failed and Message: `@{string(outputs('Update_Existing_On-Hand_with_ETag'))}`
 
 ### Step 9: Configure NO Branch (Create New)
 

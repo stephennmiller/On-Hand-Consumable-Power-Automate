@@ -214,6 +214,12 @@ Add **"Compose"** action:
 
 Add **"Initialize variable"** action:
 
+**Name:** vETag
+**Type:** String
+**Value:** `@{outputs('Capture_ETag')}`
+
+Add **"Initialize variable"** action:
+
 **Name:** vOriginalTitle
 **Type:** String
 **Value:** `@{coalesce(first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['Title'], '')}`
@@ -248,7 +254,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Method: POST
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
-  - IF-MATCH: `@{outputs('Capture_ETag')}`
+  - IF-MATCH: `@{variables('vETag')}`
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
 - Body:
@@ -291,9 +297,8 @@ Add **"Condition"** - Check if retry needed:
 2. **Get items - SharePoint** (Re-fetch for new ETag):
    - Same configuration as Step 6
    - Action Name: "Get_On-Hand_for_Part+Batch_with_Lock_Retry"
-3. **Compose** - Update ETag:
-   - Action Name: "Capture_ETag"
-   - Inputs: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock_Retry')?['value'])?['@odata.etag']}`
+3. **Set variable** - vETag:
+   - Value: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock_Retry')?['value'])?['@odata.etag']}`
 4. **Increment variable** - RetryCount:
    - Value: 1
 
@@ -381,10 +386,9 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Fields:
   - PostStatus: `Error`
   - PostMessage:
-
 ```powerautomate
-    Insufficient inventory. Available: @{variables('vOriginalQty')}, Requested: @{variables('vQty')}
-    ```
+Insufficient inventory. Available: @{variables('vOriginalQty')}, Requested: @{variables('vQty')}
+```
 
   - PostedAt: `utcNow()`
 - Add **"Terminate"** action
@@ -661,7 +665,7 @@ This maintains a safety stock of 10 units.
 
 4. **ETag/Lock errors**
    - Ensure using correct ETag capture: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['@odata.etag']}`
-   - Check Lock status code: `equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 204)`
+   - Check Lock status code: `equals(outputs('Lock_On-Hand_with_ETag_Attempt')?['statusCode'], 204)`
    - Verify metadata type matches your list: `SP.Data.On_x002d_Hand_x0020_MaterialListItem`
 
 ## Expression Reference
