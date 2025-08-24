@@ -40,6 +40,7 @@ This comprehensive migration plan ensures zero-downtime transition from the curr
 ## Required SharePoint Lists for Migration
 
 ### 1. Migration Control List
+
 ```
 Columns:
 - Title: Single line of text
@@ -56,6 +57,7 @@ Columns:
 ```
 
 ### 2. Parallel Run Comparison List
+
 ```
 Columns:
 - Title: Single line of text
@@ -73,6 +75,7 @@ Columns:
 ```
 
 ### 3. Data Validation Results List
+
 ```
 Columns:
 - Title: Single line of text
@@ -94,6 +97,7 @@ Columns:
 #### Flow: Migration Preparation Flow
 
 ##### Step 1: Create Migration Record
+
 ```
 Action: Create item in SharePoint
 List: Migration Control
@@ -108,6 +112,7 @@ Fields:
 ```
 
 ##### Step 2: Capture Current System Baseline
+
 ```
 Action: Parallel Branch
 
@@ -137,6 +142,7 @@ Branch 3: Document Current Configuration
 ```
 
 ##### Step 3: Create Backup
+
 ```
 Action: Create backup package
 Content:
@@ -159,6 +165,7 @@ File Name: Backup_@{variables('MigrationID')}.json
 #### Flow: Infrastructure Setup Flow
 
 ##### Step 1: Create Required Lists
+
 ```
 Action: For each required list
 Source: @{variables('RequiredLists')}
@@ -188,6 +195,7 @@ Source: @{variables('RequiredLists')}
 ```
 
 ##### Step 2: Configure Connections
+
 ```
 Action: Create/Update connections
 For each connection:
@@ -208,6 +216,7 @@ if(
 ```
 
 ##### Step 3: Deploy Optimized Flow (Disabled)
+
 ```
 Action: Import solution
 Solution file: OptimizedRecalcFlow.zip
@@ -226,6 +235,7 @@ Action: Configure flow settings
 #### Flow: Pre-Migration Validation Flow
 
 ##### Step 1: System Health Check
+
 ```
 Action: Parallel health checks
 
@@ -253,6 +263,7 @@ Check 4: Network connectivity
 ```
 
 ##### Step 2: Dry Run Test
+
 ```
 Action: Run optimized flow in test mode
 Settings:
@@ -268,6 +279,7 @@ Validation checks:
 ```
 
 ##### Step 3: Create Rollback Plan
+
 ```
 Action: Document rollback procedure
 Content:
@@ -287,6 +299,7 @@ Store as: RollbackPlan_@{variables('MigrationID')}.pdf
 #### Flow: Parallel Run Orchestrator
 
 ##### Step 1: Enable Parallel Processing
+
 ```
 Action: Update flow states
 Current Flow: Enabled (with tagging)
@@ -298,6 +311,7 @@ Optimized: "MigrationTarget"
 ```
 
 ##### Step 2: Synchronize Triggers
+
 ```
 Action: Configure synchronized scheduling
 Expression for synchronized start:
@@ -320,6 +334,7 @@ Expression for synchronized start:
 ```
 
 ##### Step 3: Monitor Parallel Execution
+
 ```
 Action: Create monitoring loop
 Do Until: @{equals(variables('ParallelRunHours'), 24)}
@@ -344,6 +359,7 @@ Do Until: @{equals(variables('ParallelRunHours'), 24)}
 #### Flow: Real-Time Comparison Engine
 
 ##### Step 1: Capture Flow Outputs
+
 ```
 Action: When a flow run completes (trigger)
 
@@ -359,6 +375,7 @@ Store in temporary comparison table
 ```
 
 ##### Step 2: Match Parallel Runs
+
 ```
 Expression for matching runs:
 filter(
@@ -371,6 +388,7 @@ filter(
 ```
 
 ##### Step 3: Compare Results
+
 ```
 Action: Deep comparison
 Compare:
@@ -404,6 +422,7 @@ Compare:
 ```
 
 ##### Step 4: Generate Comparison Report
+
 ```
 Action: Create comparison record
 List: Parallel Run Comparison
@@ -426,6 +445,7 @@ Fields:
 #### Flow: Data Validation Flow
 
 ##### Step 1: Checksum Validation
+
 ```
 Expression for checksum calculation:
 {
@@ -457,6 +477,7 @@ Validation: equals(Current, Optimized)
 ```
 
 ##### Step 2: Statistical Validation
+
 ```
 Calculate for both flows:
 - Mean values
@@ -487,6 +508,7 @@ and(
 ```
 
 ##### Step 3: Business Rule Validation
+
 ```
 Action: Apply business rules
 Rules to validate:
@@ -503,6 +525,7 @@ For each rule:
 ```
 
 ##### Step 4: Generate Validation Score
+
 ```
 Expression for validation score:
 div(
@@ -524,6 +547,7 @@ div(
 ### Flow: Go/No-Go Decision Flow
 
 #### Step 1: Compile Decision Metrics
+
 ```
 Action: Get all validation results
 Filter: MigrationID eq '@{variables('MigrationID')}'
@@ -536,6 +560,7 @@ Calculate:
 ```
 
 #### Step 2: Apply Decision Criteria
+
 ```
 Decision criteria:
 {
@@ -562,6 +587,7 @@ and(
 ```
 
 #### Step 3: Execute Cutover (if Go)
+
 ```
 If Go Decision:
   Action: Disable current flow
@@ -591,6 +617,7 @@ If No-Go Decision:
 ### Flow: Cutover Execution Flow
 
 #### Step 1: Pre-Cutover Checks
+
 ```
 Final checks:
 1. No active runs in current flow
@@ -607,6 +634,7 @@ Final checks:
 ```
 
 #### Step 2: Execute Cutover
+
 ```
 Action: Orchestrated cutover sequence
 
@@ -633,6 +661,7 @@ Step 5: Verify first run
 ```
 
 #### Step 3: Post-Cutover Validation
+
 ```
 Immediate validation (first hour):
 - Monitor error rate
@@ -659,6 +688,7 @@ Expression for health check:
 ### Flow: Post-Migration Monitor
 
 #### Step 1: 24-Hour Observation
+
 ```
 Action: Continuous monitoring loop
 Duration: 24 hours
@@ -675,6 +705,7 @@ Store metrics for analysis
 ```
 
 #### Step 2: Performance Tuning
+
 ```
 Based on observations, adjust:
 
@@ -692,6 +723,7 @@ Based on observations, adjust:
 ```
 
 #### Step 3: Document Lessons Learned
+
 ```
 Action: Generate migration report
 Include:
@@ -705,6 +737,7 @@ Include:
 ## Rollback Plan
 
 ### Trigger Conditions for Rollback
+
 ```
 Automatic rollback if:
 - Data integrity score < 95%
@@ -716,6 +749,7 @@ Automatic rollback if:
 ### Rollback Execution Flow
 
 #### Step 1: Immediate Actions
+
 ```
 Action: Emergency stop
 1. Disable optimized flow immediately
@@ -724,6 +758,7 @@ Action: Emergency stop
 ```
 
 #### Step 2: Restore Previous State
+
 ```
 Action: Restoration sequence
 1. Re-enable current flow with original configuration
@@ -733,6 +768,7 @@ Action: Restoration sequence
 ```
 
 #### Step 3: Data Recovery
+
 ```
 Action: Data reconciliation
 1. Identify transactions processed by optimized flow
@@ -742,6 +778,7 @@ Action: Data reconciliation
 ```
 
 #### Step 4: Post-Rollback Analysis
+
 ```
 Action: Root cause analysis
 1. Collect all logs and metrics
@@ -754,6 +791,7 @@ Action: Root cause analysis
 ## Testing Procedures
 
 ### Pre-Migration Tests
+
 ```
 Test Suite 1: Infrastructure
 - List creation verification
@@ -769,6 +807,7 @@ Test Suite 2: Flow Functionality
 ```
 
 ### Parallel Run Tests
+
 ```
 Test Suite 3: Comparison Accuracy
 - Data matching validation
@@ -784,6 +823,7 @@ Test Suite 4: Load Testing
 ```
 
 ### Post-Migration Tests
+
 ```
 Test Suite 5: Production Validation
 - End-to-end processing
@@ -803,6 +843,7 @@ Test Suite 6: Rollback Testing
 ### Stakeholder Notifications
 
 #### Pre-Migration (Day 0)
+
 ```
 Email Template:
 Subject: On-Hand Consumable System Migration - Starting Tomorrow
@@ -823,6 +864,7 @@ For questions, contact: [Migration Team]
 ```
 
 #### Daily Updates (Day 1-5)
+
 ```
 Format: Status dashboard + email summary
 Include:
@@ -834,6 +876,7 @@ Include:
 ```
 
 #### Cutover Notification (Day 5)
+
 ```
 Immediate notification via:
 - Email (high priority)
@@ -849,6 +892,7 @@ Include:
 ```
 
 #### Post-Migration Report (Day 6)
+
 ```
 Comprehensive report including:
 - Migration summary
@@ -861,18 +905,21 @@ Comprehensive report including:
 ## Success Metrics
 
 ### Technical Metrics
+
 - Performance improvement: Target 5x (500%)
 - Error rate reduction: Target 50%
 - Processing time: < 2 minutes for 10,000 records
 - System availability: 99.9% uptime
 
 ### Business Metrics
+
 - Data accuracy: 100%
 - User satisfaction: > 90%
 - Cost reduction: > 30%
 - Maintenance effort: -50%
 
 ### Migration Metrics
+
 - Timeline adherence: 100%
 - Zero unplanned downtime
 - Rollback not required
@@ -893,18 +940,21 @@ Comprehensive report including:
 ## Appendices
 
 ### A. Script Library
+
 - Backup scripts
 - Validation queries
 - Rollback procedures
 - Monitoring queries
 
 ### B. Configuration Templates
+
 - Flow settings
 - Connection strings
 - Environment variables
 - Trigger schedules
 
 ### C. Documentation Updates
+
 - User guides
 - Administrator guides
 - Troubleshooting guides

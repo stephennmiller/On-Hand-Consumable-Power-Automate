@@ -393,25 +393,34 @@ Add **"Update item - SharePoint"** action:
   - Count: 3
   - Interval: PT5S
 
-### Step 16: Add Compensating Transaction Scope
+### Step 16: Add Error Handling with Automatic Rollback
 
 Add **"Scope"** action named **"Compensate - Rollback on Failure"**
 
-**Configure Run After:**
+**Important:** This scope handles errors and automatically rolls back inventory changes if the flow fails after updating On-Hand Material.
 
-- Has failed, is skipped, has timed out
+**Configure Run After:**
+1. Click the three dots on the scope
+2. Select "Settings"
+3. Under "Configure run after", check:
+   - ✅ Has failed
+   - ✅ Is skipped
+   - ✅ Has timed out
+   - ❌ Is successful (unchecked)
 
 Inside Compensate scope:
 
-#### Step 15a: Check if Rollback Needed
+#### Step 16a: Check if Rollback Needed
 
 Add **"Condition"** action:
+
+**Purpose:** Only rollback if we successfully updated inventory but then failed
 
 - Left: `@{variables('vUpdateCompleted')}`
 - Operand: is equal to
 - Right: `true`
 
-**If Yes (Need to Rollback):**
+**If Yes (Inventory was modified - Need to Rollback):**
 
 ##### Rollback Inventory Update
 
@@ -447,7 +456,7 @@ Add **"Create item - SharePoint"** action:
   - Severity: `Critical`
   - Timestamp: `utcNow()`
 
-#### Step 15b: Always Execute - Error Logging
+#### Step 16b: Always Execute - Error Logging (Outside the condition)
 
 ##### Log Error
 
@@ -564,24 +573,24 @@ This maintains a safety stock of 10 units.
 ### Common Issues
 
 1. **Flow not triggering**
-   - Verify PostStatus = "Validated" exactly
-   - Check TransactionType = "Issue" (case insensitive)
-   - Ensure trigger condition syntax is correct
+   - Verify PostStatus = "Validated" exactly (check Choice column values)
+   - Check TransactionType = "Issue" (case insensitive due to toUpper)
+   - Ensure trigger condition syntax: `@and(equals(triggerOutputs()?['body/PostStatus'], 'Validated'), equals(toUpper(triggerOutputs()?['body/TransactionType']), 'ISSUE'))`
 
 2. **Stock calculations wrong**
-   - Verify float conversion on all quantities
-   - Check subtraction expression syntax
-   - Test with decimal quantities
+   - Verify float conversion: `float(variables('vQty'))`
+   - Check subtraction: `@sub(float(variables('vOriginalQty')), float(variables('vQty')))`
+   - Test with decimal quantities (e.g., 10.5)
 
 3. **Can't find inventory**
-   - Ensure Part, Batch, UOM match exactly
-   - Check for extra spaces (trimming)
-   - Verify Location if using that field
+   - Ensure exact matches using trim(): `trim(coalesce(triggerBody()?['PartNumber'], ''))`
+   - Escape single quotes in filter: `replace(variables('vPart'),'''','''''')`
+   - Verify IsActive = true in filter query
 
-4. **IsActive not updating**
-   - Check if() expression syntax
-   - Verify comparison with 0
-   - Test true/false values
+4. **ETag/Lock errors**
+   - Ensure using correct ETag capture: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['@odata.etag']}`
+   - Check Lock status code: `equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 204)`
+   - Verify metadata type matches your list: `SP.Data.On_x002d_Hand_x0020_MaterialListItem`
 
 ## Expression Reference
 

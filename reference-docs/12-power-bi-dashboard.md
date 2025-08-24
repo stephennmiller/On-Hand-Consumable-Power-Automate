@@ -37,6 +37,7 @@ This comprehensive Power BI dashboard provides real-time visibility into the On-
 ## SharePoint List Schemas for Metrics
 
 ### 1. Real-Time Metrics List
+
 ```
 List Name: PowerBI_RealTimeMetrics
 Columns:
@@ -56,6 +57,7 @@ Columns:
 ```
 
 ### 2. Flow Execution History List
+
 ```
 List Name: PowerBI_FlowExecutionHistory
 Columns:
@@ -76,6 +78,7 @@ Columns:
 ```
 
 ### 3. Inventory Snapshot List
+
 ```
 List Name: PowerBI_InventorySnapshot
 Columns:
@@ -97,6 +100,7 @@ Columns:
 ```
 
 ### 4. Alert History List
+
 ```
 List Name: PowerBI_AlertHistory
 Columns:
@@ -119,6 +123,7 @@ Columns:
 ### Page 1: Executive Dashboard
 
 #### KPI Section (Top Row)
+
 ```
 Card 1: System Health Score
 Measure: 
@@ -186,6 +191,7 @@ Sparkline: Last 24 hours trend
 ```
 
 #### Performance Trends (Middle Section)
+
 ```
 Line Chart: Processing Performance Over Time
 X-Axis: Date/Time (Continuous)
@@ -225,6 +231,7 @@ RETURN LastValue * POWER(GrowthRate, DATEDIFF(MAX(Date[Date]), Date[Date], DAY))
 ```
 
 #### Error Analysis (Bottom Section)
+
 ```
 Donut Chart: Error Distribution
 Values: Error Count by Category
@@ -261,6 +268,7 @@ IF(
 ### Page 2: Operational Dashboard
 
 #### Flow Status Matrix
+
 ```
 Matrix Visual: Flow Execution Status
 Rows: Flow Names
@@ -279,6 +287,7 @@ Success Rate:
 ```
 
 #### Real-Time Monitoring
+
 ```
 Streaming Dataset Configuration:
 {
@@ -300,6 +309,7 @@ Auto-refresh: Every 1 second
 ```
 
 #### Queue Analytics
+
 ```
 Waterfall Chart: Queue Processing Pipeline
 Categories:
@@ -318,6 +328,7 @@ RETURN DIVIDE(ProcessedCount, TimeWindow)
 ```
 
 #### Resource Utilization
+
 ```
 Combo Chart: Resource Usage vs Performance
 X-Axis: Time
@@ -334,6 +345,7 @@ RETURN MIN(DIVIDE(RecordsPerAPICall, OptimalRatio) * 100, 100)
 ### Page 3: Inventory Dashboard
 
 #### Stock Level Overview
+
 ```
 Treemap: Inventory Distribution
 Size: On-Hand Quantity
@@ -345,6 +357,7 @@ Drill-through enabled to item history
 ```
 
 #### Movement Analysis
+
 ```
 Scatter Chart: Inventory Turnover Analysis
 X-Axis: Average On-Hand Quantity
@@ -361,6 +374,7 @@ Quadrant Analysis:
 ```
 
 #### Stock Predictions
+
 ```
 Line Chart with Forecast: Predicted Stock Levels
 X-Axis: Date (extended 30 days)
@@ -384,6 +398,7 @@ RETURN CurrentStock - (HistoricalConsumption * DaysAhead)
 ```
 
 #### Critical Items Dashboard
+
 ```
 Table: Items Requiring Attention
 Columns:
@@ -411,6 +426,7 @@ Conditional Formatting:
 ### Page 4: Analytics Dashboard
 
 #### Trend Analysis
+
 ```
 Decomposition Tree: Performance Breakdown
 Analyze: Average Processing Time
@@ -427,6 +443,7 @@ AI Insights:
 ```
 
 #### Pattern Recognition
+
 ```
 Line and Clustered Column Chart: Seasonal Patterns
 X-Axis: Day of Month
@@ -448,6 +465,7 @@ RETURN DIVIDE(CurrentValue, HistoricalAvg)
 ```
 
 #### Anomaly Detection
+
 ```
 Scatter Chart: Anomaly Detection
 X-Axis: Expected Value (based on model)
@@ -472,6 +490,7 @@ RETURN
 ```
 
 #### Predictive Analytics
+
 ```
 Key Influencers Visual: Failure Prediction
 Analyze: Likelihood of Flow Failure
@@ -494,6 +513,7 @@ Show impact on predicted failure rate
 ### Power Automate to Power BI Streaming
 
 #### Step 1: Create Streaming Dataset
+
 ```json
 POST https://api.powerbi.com/v1.0/myorg/datasets
 {
@@ -515,6 +535,7 @@ POST https://api.powerbi.com/v1.0/myorg/datasets
 ```
 
 #### Step 2: Power Automate Push Data Flow
+
 ```
 Action: HTTP Request to Power BI
 Method: POST
@@ -539,6 +560,7 @@ Body:
 ### SharePoint List Connection
 
 #### Step 1: Configure SharePoint Data Source
+
 ```
 Power BI Desktop:
 1. Get Data > SharePoint List
@@ -552,6 +574,7 @@ Power BI Desktop:
 ```
 
 #### Step 2: Configure Incremental Refresh
+
 ```
 Power Query M:
 let
@@ -571,6 +594,7 @@ Incremental Refresh Policy:
 ### Metric-Based Alerts
 
 #### Alert 1: Performance Degradation
+
 ```
 Condition: Average Processing Time > 5 minutes
 Threshold: 300000 milliseconds
@@ -594,6 +618,7 @@ IF(
 ```
 
 #### Alert 2: Error Rate Spike
+
 ```
 Condition: Error Rate > 5% in last hour
 Calculation:
@@ -615,6 +640,7 @@ IF(ErrorRate > 5, "CRITICAL: Error rate " & FORMAT(ErrorRate, "#.#%"), "Normal")
 ```
 
 #### Alert 3: Inventory Critical Level
+
 ```
 Condition: Any item below minimum stock
 Check: Every 30 minutes
@@ -637,6 +663,7 @@ COUNTROWS(
 ### Anomaly-Based Alerts
 
 #### Statistical Anomaly Detection
+
 ```
 Anomaly Alert Configuration:
 AnomalyDetected = 
@@ -659,6 +686,7 @@ Alert Actions:
 ## Visual Layout Specifications
 
 ### Grid System
+
 ```
 Dashboard Grid: 12 columns x 8 rows
 Standard Spacing: 10px between visuals
@@ -671,6 +699,7 @@ Row 7-8: Alerts Table (full width)
 ```
 
 ### Color Scheme
+
 ```
 Primary Colors:
 - Success: #28a745
@@ -686,6 +715,7 @@ Background:
 ```
 
 ### Typography
+
 ```
 Fonts:
 - Headers: Segoe UI Semibold, 16pt
@@ -697,6 +727,7 @@ Fonts:
 ## Performance Optimization
 
 ### Data Model Optimization
+
 ```
 1. Use Star Schema:
    - Fact Tables: Metrics, Executions
@@ -713,6 +744,7 @@ Fonts:
 ```
 
 ### Query Optimization
+
 ```
 Power Query Best Practices:
 1. Filter early in the query
@@ -731,6 +763,7 @@ in
 ```
 
 ### Refresh Optimization
+
 ```
 Incremental Refresh Configuration:
 1. Historical Range: 12 months
@@ -748,6 +781,7 @@ Partition Strategy:
 ## Mobile Layout
 
 ### Phone Layout Configuration
+
 ```
 Key Metrics View:
 - System Health Score (full width)
@@ -762,6 +796,7 @@ Navigation:
 ```
 
 ### Responsive Design
+
 ```
 Breakpoints:
 - Desktop: > 1024px
@@ -777,6 +812,7 @@ Adaptive Visuals:
 ## Testing and Validation
 
 ### Dashboard Testing Checklist
+
 ```
 Data Accuracy:
 □ Verify calculations match source data
@@ -803,6 +839,7 @@ Visual Design:
 ```
 
 ### User Acceptance Testing
+
 ```
 Test Scenarios:
 1. Executive views morning dashboard
@@ -821,6 +858,7 @@ Success Criteria:
 ## Deployment Guide
 
 ### Step 1: Development Environment
+
 ```
 1. Install Power BI Desktop (latest version)
 2. Connect to development SharePoint
@@ -830,6 +868,7 @@ Success Criteria:
 ```
 
 ### Step 2: Workspace Setup
+
 ```
 1. Create Power BI Workspace
    Name: OnHandConsumable-Analytics
@@ -842,6 +881,7 @@ Success Criteria:
 ```
 
 ### Step 3: Publish and Configure
+
 ```
 1. Publish from Power BI Desktop
 2. Configure dataset refresh schedule
@@ -851,6 +891,7 @@ Success Criteria:
 ```
 
 ### Step 4: Production Deployment
+
 ```
 1. Final testing in production
 2. User training sessions
@@ -862,6 +903,7 @@ Success Criteria:
 ## Maintenance Procedures
 
 ### Daily Maintenance
+
 ```
 □ Check refresh status
 □ Review alert logs
@@ -870,6 +912,7 @@ Success Criteria:
 ```
 
 ### Weekly Maintenance
+
 ```
 □ Review usage analytics
 □ Check for failed refreshes
@@ -878,6 +921,7 @@ Success Criteria:
 ```
 
 ### Monthly Maintenance
+
 ```
 □ Review and adjust alerts
 □ Update calculations if needed

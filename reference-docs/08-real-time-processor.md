@@ -64,6 +64,7 @@ Supported Event Sources:
 ### SharePoint Lists
 
 #### 1. Event Queue List
+
 ```
 Columns:
 - Title: Single line of text
@@ -81,6 +82,7 @@ Columns:
 ```
 
 #### 2. Real-Time State List
+
 ```
 Columns:
 - Title: Single line of text
@@ -98,6 +100,7 @@ Columns:
 ```
 
 #### 3. Processing Log List
+
 ```
 Columns:
 - Title: Single line of text
@@ -116,6 +119,7 @@ Columns:
 ## Flow 1: Event Listener and Router
 
 ### Trigger Configuration
+
 ```
 Type: When an HTTP request is received
 Method: POST
@@ -136,6 +140,7 @@ Schema:
 ### Step-by-Step Implementation
 
 #### Step 1: Validate and Enrich Event
+
 ```
 Action: Compose - Event Validation
 Expression:
@@ -161,6 +166,7 @@ Expression:
 ```
 
 #### Step 2: Apply Event Filtering
+
 ```
 Condition: Should Process Event
 Expression:
@@ -183,6 +189,7 @@ and(
 ```
 
 #### Step 3: Queue Event for Processing
+
 ```
 Action: Create item in SharePoint
 List: Event Queue
@@ -199,6 +206,7 @@ Fields:
 ```
 
 #### Step 4: Route to Appropriate Processor
+
 ```
 Switch: Based on Event Type
 Cases:
@@ -219,6 +227,7 @@ Cases:
 ```
 
 #### Step 5: Return Acknowledgment
+
 ```
 Action: Response
 Status Code: 202 (Accepted)
@@ -246,6 +255,7 @@ Body:
 ## Flow 2: Queue-Based Event Processor
 
 ### Trigger Configuration
+
 ```
 Type: Recurrence
 Frequency: Every 30 seconds
@@ -255,6 +265,7 @@ Concurrency Control: 1 (prevent parallel processing conflicts)
 ### Processing Logic
 
 #### Step 1: Dequeue Next Event
+
 ```
 Action: Get items from SharePoint
 List: Event Queue
@@ -283,6 +294,7 @@ take(
 ```
 
 #### Step 2: Process Each Event
+
 ```
 Action: Apply to each queued event
 Concurrency: 1 (sequential processing for state consistency)
@@ -508,6 +520,7 @@ Fields:
 ## Flow 3: Real-Time On-Hand Update Processor
 
 ### Trigger Configuration
+
 ```
 Type: When an item is created or modified
 List: Transaction History
@@ -517,6 +530,7 @@ Columns to trigger: Status (when changed to 'Completed')
 ### Implementation
 
 #### Step 1: Aggregate Recent Transactions
+
 ```
 Action: Get items
 List: Transaction History
@@ -550,6 +564,7 @@ Aggregation Expression:
 ```
 
 #### Step 2: Calculate Real-Time On-Hand
+
 ```
 Expression:
 add(
@@ -569,6 +584,7 @@ if(
 ```
 
 #### Step 3: Update with Optimistic Locking
+
 ```
 Action: Send HTTP request to SharePoint
 Method: POST
@@ -591,6 +607,7 @@ If 412 (Precondition Failed):
 ```
 
 #### Step 4: Broadcast Update
+
 ```
 Action: Send event to Event Hub
 Event Content:
@@ -614,9 +631,11 @@ Subscribers:
 ## Flow 4: Hybrid Batch-Real-Time Synchronization
 
 ### Purpose
+
 Ensures consistency between real-time updates and batch recalculation processes
 
 ### Trigger Configuration
+
 ```
 Type: Recurrence
 Frequency: Every 15 minutes
@@ -626,6 +645,7 @@ Additional: Triggered after batch recalc completion
 ### Synchronization Logic
 
 #### Step 1: Identify Synchronization Window
+
 ```
 Variables:
 - SyncStartTime: Last successful sync timestamp
@@ -648,6 +668,7 @@ Expression:
 ```
 
 #### Step 2: Detect Conflicts
+
 ```
 Action: Get items from both sources
 Real-Time State: Items modified in sync window
@@ -671,6 +692,7 @@ filter(
 ```
 
 #### Step 3: Resolve Conflicts
+
 ```
 Conflict Resolution Strategy:
 Switch on Conflict Type:
@@ -718,6 +740,7 @@ if(
 ```
 
 #### Step 4: Update Master Records
+
 ```
 Action: Batch update operation
 For each resolved conflict:
@@ -733,6 +756,7 @@ For each resolved conflict:
 ```
 
 #### Step 5: Log Synchronization Results
+
 ```
 Action: Create synchronization report
 Content:
@@ -754,9 +778,11 @@ Content:
 ## Flow 5: Dead Letter Queue Processor
 
 ### Purpose
+
 Handle failed events and ensure no data loss
 
 ### Trigger Configuration
+
 ```
 Type: Recurrence
 Frequency: Every 5 minutes
@@ -765,6 +791,7 @@ Frequency: Every 5 minutes
 ### Implementation
 
 #### Step 1: Get Failed Events
+
 ```
 Action: Get items
 List: Event Queue
@@ -773,6 +800,7 @@ Order by: Priority desc, EventTimestamp asc
 ```
 
 #### Step 2: Analyze Failure Patterns
+
 ```
 Group failures by:
 - Error type
@@ -808,6 +836,7 @@ if(
 ```
 
 #### Step 3: Apply Recovery Strategy
+
 ```
 Switch on Failure Pattern:
 
@@ -831,6 +860,7 @@ Case: RandomFailure
 ```
 
 #### Step 4: Manual Intervention Alert
+
 ```
 Condition: Critical failures or pattern detected
 Action: Create incident
@@ -853,6 +883,7 @@ Notification channels:
 ## Performance Optimization
 
 ### Caching Strategy
+
 ```
 Cache Configuration:
 Location: Azure Redis Cache
@@ -874,6 +905,7 @@ if(
 ```
 
 ### Batching Micro-Updates
+
 ```
 Batch Configuration:
 Window: 100 milliseconds
@@ -890,6 +922,7 @@ Benefit: Reduces database calls by 80%
 ```
 
 ### Connection Pooling
+
 ```
 Pool Configuration:
 Min Connections: 5
@@ -907,6 +940,7 @@ Usage Pattern:
 ## Monitoring and Metrics
 
 ### Real-Time KPIs
+
 ```
 Metrics to Track:
 1. Event Processing Latency
@@ -931,6 +965,7 @@ Metrics to Track:
 ```
 
 ### Performance Dashboard
+
 ```
 Real-Time Metrics Display:
 - Current queue depth (gauge)
@@ -944,6 +979,7 @@ Real-Time Metrics Display:
 ## Testing Scenarios
 
 ### Test 1: High Volume Event Storm
+
 ```
 Setup:
 - Generate 10,000 events in 60 seconds
@@ -958,6 +994,7 @@ Validation:
 ```
 
 ### Test 2: Conflict Resolution
+
 ```
 Setup:
 - Simultaneous real-time and batch updates
@@ -972,6 +1009,7 @@ Validation:
 ```
 
 ### Test 3: Failure Recovery
+
 ```
 Setup:
 - Inject various failure types
@@ -988,6 +1026,7 @@ Validation:
 ## Production Deployment
 
 ### Deployment Checklist
+
 ```
 Pre-Production:
 □ Create all SharePoint lists
@@ -1014,6 +1053,7 @@ Post-Deployment:
 ```
 
 ### Rollback Plan
+
 ```
 If Issues Detected:
 1. Disable real-time processing
@@ -1028,6 +1068,7 @@ If Issues Detected:
 ## Integration Points
 
 ### With Batch Recalc
+
 ```
 Integration Strategy:
 1. Real-time updates between batch runs
@@ -1037,6 +1078,7 @@ Integration Strategy:
 ```
 
 ### With External Systems
+
 ```
 Webhook Registration:
 POST /api/webhooks/register
@@ -1056,6 +1098,7 @@ Event Format:
 ```
 
 ### With Power BI
+
 ```
 Streaming Dataset Push:
 POST /api/powerbi/stream
@@ -1071,6 +1114,7 @@ POST /api/powerbi/stream
 ## Advanced Features
 
 ### Predictive Queue Management
+
 ```
 Algorithm:
 Based on historical patterns, predict queue depth
@@ -1085,6 +1129,7 @@ predictedQueueDepth =
 ```
 
 ### Event Replay Capability
+
 ```
 Features:
 1. Store all events for 30 days
@@ -1095,6 +1140,7 @@ Features:
 ```
 
 ### Multi-Region Support
+
 ```
 Architecture:
 - Primary region: Real-time processing

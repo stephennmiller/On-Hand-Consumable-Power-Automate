@@ -4,6 +4,15 @@
 
 Validates all new Tech Transaction entries, ensuring data quality and business rules are enforced before processing.
 
+### Transaction Status Lifecycle
+
+Transactions progress through these statuses:
+1. **New** - Initial state when created
+2. **Validated** - Passed all business rule checks (triggers next flows)
+3. **Processing** - Being processed by receive/issue flows
+4. **Posted** - Successfully completed
+5. **Error** - Failed validation or processing
+
 ## Flow Configuration
 
 **Flow Name:** `TT - Intake Validate`
