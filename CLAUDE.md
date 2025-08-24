@@ -39,8 +39,7 @@ Located in `reference-docs/`:
 
 ### Concurrency Control
 
-- Uses ETag-based optimistic locking for inventory updates
-- ETag-based optimistic locking is the primary mechanism
+- Uses ETag-based optimistic locking for inventory updates (primary mechanism)
 - Optional: You may add a boolean `ProcessingLock` column for UI clarity/guardrails, but it is not required by the provided flows
 - Trigger concurrency set to 1 for ISSUE flows
   - Flow settings path: Trigger → Settings → Concurrency Control → On, Degree of Parallelism: 1
@@ -61,6 +60,7 @@ The flows use these specific column names:
 - On-Hand Material: `OnHandQty` (not TotalQuantity)
 - Additional columns: `UOM`, `Location`, `PONumber` in Tech Transactions
 - On-Hand columns: `IsActive`, `LastMovementAt`, `LastMovementType`, `LastMovementRefId`
+- Flow Error Log: `Title` (flow name), `ItemID` (source transaction ID), `ErrorMessage`, `Timestamp`
 
 ### Required Environment Variables (Dataverse)
 
@@ -120,7 +120,7 @@ When updating documentation:
   - Send `If-Match: <etag>` with MERGE/Update; success returns 204 No Content
   - On 412 (Precondition Failed), re-read the item to get latest ETag, reapply changes, retry with bounded exponential backoff (max 3 attempts)
 - **Rollback Mechanism**: Step 16 in FLOW-03 implements compensating transactions
-- **Batch Processing**: FLOW-05 uses SharePoint batch APIs for 5x performance improvement
+- **Batch Processing**: FLOW-05 uses SharePoint batch APIs for significant performance improvement (results vary by tenant and list size)
 - **Circuit Breaker**: Advanced flows implement circuit breaker pattern to prevent cascade failures
 
 ## Testing Approach
@@ -143,7 +143,7 @@ Each flow includes specific test cases:
 ## Common Troubleshooting Areas
 
 1. **Trigger Conditions**: Exact syntax and Choice column value access
-2. **ETag Handling**: Proper capture and usage for locking - use `first(body('Get_items')?['value'])?['@odata.etag']`
+2. **ETag Handling**: Proper capture and usage for locking - use `first(body('Get_OnHand_for_Part_Batch')?['value'])?['@odata.etag']`
 3. **Filter Queries**: Single quote escaping and case sensitivity
 4. **Float Conversions**: Required for all numeric operations
 5. **Metadata Type Names**: SharePoint list internal names - e.g., `SP.Data.On_x002d_Hand_x0020_MaterialListItem`
