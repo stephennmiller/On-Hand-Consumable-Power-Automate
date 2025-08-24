@@ -45,8 +45,8 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 
 ```powerautomate
 @and(
-  equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
-  equals(toUpper(triggerOutputs()?['body/TransactionType']), 'ISSUE')
+  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
+  equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE')
 )
 ```
 
@@ -160,6 +160,7 @@ Add **"Get items - SharePoint"** action:
 ```
 
 - Top Count: 1
+- **Order By:** `Modified desc`
 - **Select Query:** `ID,OnHandQty,PartNumber,Batch,UOM,Location,Title`
 - **Settings:**
   - Retry Policy: Fixed Interval
@@ -352,12 +353,6 @@ Add **"Get item - SharePoint"** action to refresh ETag:
 - List Name: On-Hand Material
 - Id: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']}`
 
-Add **"Compose"** action:
-
-**Action Name:** "Capture_Current_ETag"
-
-- Inputs: `@{outputs('Get_Current_ETag_For_Unlock')?['@odata.etag']}`
-
 Add **"Send an HTTP request to SharePoint"** action:
 
 - Site Address: `@{environment('SharePointSiteUrl')}`
@@ -366,7 +361,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: `@{outputs('Capture_Current_ETag')}`
+  - IF-MATCH: `@{outputs('Get_Current_ETag_For_Unlock')?['@odata.etag']}`
 - Body:
 ```json
 {
@@ -404,12 +399,6 @@ Add **"Get item - SharePoint"** action to refresh ETag:
 - List Name: On-Hand Material
 - Id: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']}`
 
-Add **"Compose"** action:
-
-**Action Name:** "Capture_Update_ETag"
-
-- Inputs: `@{outputs('Get_Current_ETag_For_Update')?['@odata.etag']}`
-
 Add **"Send an HTTP request to SharePoint"** action:
 
 **Action Name:** "Update On-Hand Qty and Release Lock"
@@ -422,7 +411,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: `@{outputs('Capture_Update_ETag')}`
+  - IF-MATCH: `@{outputs('Get_Current_ETag_For_Update')?['@odata.etag']}`
 - Body:
 ```json
 {

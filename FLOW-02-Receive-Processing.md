@@ -45,8 +45,8 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 
 ```powerautomate
 @and(
-  equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
-  equals(toUpper(triggerOutputs()?['body/TransactionType']), 'RECEIVE')
+  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
+  equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RECEIVE')
 )
 ```
 
@@ -213,7 +213,7 @@ Add **"Send an HTTP request to SharePoint"** action:
     "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
   },
   "Title": "@{variables('vOriginalTitle')}",
-  "OnHandQty": @{add(float(coalesce(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty'], 0)), float(variables('vQty')))},
+  "OnHandQty": @{float(formatNumber(add(float(coalesce(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty'], 0)), float(variables('vQty'))), 'N2'))},
   "LastMovementAt": "@{utcNow()}",
   "LastMovementType": "Receive",
   "LastMovementRefId": "@{variables('vId')}",
@@ -251,11 +251,12 @@ In the **No** branch, add **"Create item - SharePoint"** action:
 - Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Fields:
+  - Title: `@{concat(variables('vPart'), '-', variables('vBatch'), '-', variables('vUOM'), if(greater(length(variables('vLoc')), 0), concat('-', variables('vLoc')), ''))}`
   - PartNumber: `@{variables('vPart')}`
   - Batch: `@{variables('vBatch')}`
   - UOM: `@{variables('vUOM')}`
   - Location: `@{if(greater(length(variables('vLoc')), 0), variables('vLoc'), null)}`
-  - OnHandQty: `@{variables('vQty')}`
+  - OnHandQty: `@{float(formatNumber(variables('vQty'), 'N2'))}`
   - LastMovementAt: `utcNow()`
   - LastMovementType: `Receive`
   - LastMovementRefId: `@{variables('vId')}`
