@@ -31,7 +31,7 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 3. Name: `TT - Issue → OnHand Upsert`
 4. Choose trigger: **"When an item is created or modified - SharePoint"**
 5. Configure:
-   - Site Address: `@{parameters('SharePointSiteUrl')}`
+   - Site Address: `@{environment('SharePointSiteUrl')}`
    - List Name: Tech Transactions
 6. **Advanced Options:**
    - Limit Columns by View: Yes (performance optimization)
@@ -137,7 +137,7 @@ Add **"Get items - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Filter Query:
 
@@ -176,7 +176,7 @@ Add **"Condition"** action:
 **If No:**
 
 - Add **"Update item - SharePoint"** action
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
@@ -224,7 +224,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - Method: POST
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
@@ -296,7 +296,7 @@ Add **"Condition"** action:
 
 Add **"Send an HTTP request to SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - Method: POST
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
@@ -316,7 +316,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 #### Then Update Transaction
 
 - Add **"Update item - SharePoint"** action
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
@@ -339,7 +339,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - Method: POST
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
@@ -381,7 +381,7 @@ Add **"Update item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
@@ -430,7 +430,7 @@ Add **"Update item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
 - Fields:
@@ -448,7 +448,7 @@ Add **"Update item - SharePoint"** action:
 
 Add **"Create item - SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
   - FlowName: `TT - Issue → OnHand Upsert`
@@ -462,7 +462,7 @@ Add **"Create item - SharePoint"** action:
 
 Add **"Create item - SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
   - FlowName: `TT - Issue → OnHand Upsert`
@@ -475,7 +475,7 @@ Add **"Create item - SharePoint"** action:
 
 Add **"Update item - SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
@@ -487,7 +487,7 @@ Add **"Update item - SharePoint"** action:
 
 Add **"Send an email (V2)"** action:
 
-- To: `@{parameters('AdminEmail')}`
+- To: `@{environment('AdminEmail')}`
 - Subject: `CRITICAL: Issue Processing Failed - Rollback @{if(variables('vUpdateCompleted'), 'Executed', 'N/A')}`
 - Body:
 

@@ -10,9 +10,11 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 
 - [ ] Access to SharePoint site
 - [ ] Power Automate license
-- [ ] Set up environment parameters:
+- [ ] Set up Dataverse environment variables:
   - **SharePointSiteUrl**: Your SharePoint site URL
+    - Usage in flows: `environment('SharePointSiteUrl')`
   - **AdminEmail**: Email address for critical alerts
+    - Usage in flows: `environment('AdminEmail')`
 - [ ] Create these SharePoint lists with exact column names and types:
 
 #### Tech Transactions List
@@ -27,8 +29,8 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | Batch | Single line of text | Required |
 | Location | Single line of text | Optional |
 | UOM | Single line of text | Optional |
-| PONumber | Single line of text | Optional (Required for ISSUE) |
-| Qty | Number | Required, Min: 0.01 |
+| PONumber | Single line of text | Optional (Required for ISSUE), Indexed |
+| Qty | Number | Required, Min: 0.01, Decimal places: 2 |
 | PostStatus | Choice | Choices: New, Validated, Processing, Posted, Error (Default: New) |
 | ProcessingLock | Single line of text | Optional (for concurrency) |
 | ErrorMessage | Multiple lines of text | Optional |
@@ -38,9 +40,9 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | Column Name | Type | Settings |
 |-------------|------|----------|
 | Title | Single line of text | Default column |
-| PartNumber | Single line of text | Required |
+| PartNumber | Single line of text | Required, Indexed |
 | PartDescription | Single line of text | Optional |
-| Batch | Single line of text | Required |
+| Batch | Single line of text | Required, Indexed |
 | Location | Single line of text | Optional |
 | UOM | Single line of text | Optional |
 | OnHandQty | Number | Required, Default: 0 |
@@ -50,6 +52,8 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | LastMovementRefId | Single line of text | Optional |
 | ProcessingLock | Single line of text | Optional (for concurrency) |
 
+**Performance Note**: Consider adding a computed column `Key` with formula `=[PartNumber]&"-"&[Batch]` and indexing it for faster lookups.
+
 #### Flow Error Log List
 
 | Column Name | Type | Settings |
@@ -57,7 +61,6 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | Title | Single line of text | Flow name |
 | ErrorMessage | Multiple lines of text | Required |
 | FlowRunURL | Hyperlink | Optional |
-| ItemID | Single line of text | Optional |
 | ItemID | Single line of text | Optional |
 | Timestamp | Date and Time | Required |
 

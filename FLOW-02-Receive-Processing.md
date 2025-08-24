@@ -31,7 +31,7 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 3. Name: `TT - Receive → OnHand Upsert`
 4. Choose trigger: **"When an item is created or modified - SharePoint"**
 5. Configure:
-   - Site Address: `@{parameters('SharePointSiteUrl')}`
+   - Site Address: `@{environment('SharePointSiteUrl')}`
    - List Name: Tech Transactions
 6. **Advanced Options:**
    - Limit Columns by View: Use a view that includes only necessary fields
@@ -129,7 +129,7 @@ Add **"Get items - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Filter Query:
 
@@ -197,7 +197,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - Method: POST
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch')?['value'])?['ID']})`
 - Headers:
@@ -246,7 +246,7 @@ In the **No** branch, add **"Create item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Fields:
   - PartNumber: `@{variables('vPart')}`
@@ -278,7 +278,7 @@ Add **"Update item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
@@ -320,7 +320,7 @@ Add **"Condition"** to check if update was attempted:
 
 Add **"Create item - SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
   - FlowName: `TT - Receive → OnHand Upsert`
@@ -333,7 +333,7 @@ Add **"Create item - SharePoint"** action:
 
 Add **"Update item - SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
@@ -345,7 +345,7 @@ Add **"Update item - SharePoint"** action:
 
 Add **"Send an email (V2)"** action:
 
-- To: `@{parameters('AdminEmail')}`
+- To: `@{environment('AdminEmail')}`
 - Subject: `ERROR: Receive Processing Failed`
 - Body: Include transaction details and error message
 

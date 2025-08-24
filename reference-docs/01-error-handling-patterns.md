@@ -80,7 +80,7 @@ Add **"Create item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
   - FlowName: `@{workflow()?['name']}`

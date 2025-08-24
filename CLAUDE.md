@@ -38,6 +38,8 @@ Located in `reference-docs/`:
 - Uses ETag-based optimistic locking for inventory updates
 - ProcessingLock field prevents race conditions
 - Trigger concurrency set to 1 for ISSUE flows
+  - Flow settings path: Trigger → Settings → Concurrency Control → On, Degree of Parallelism: 1
+  - Note: RECEIVE flows can use 2-5 parallelism for better throughput
 
 ### Error Recovery
 - Automatic rollback on failures after inventory modification
@@ -53,9 +55,11 @@ The flows use these specific column names:
 - Additional columns: `UOM`, `Location`, `PONumber` in Tech Transactions
 - On-Hand columns: `IsActive`, `LastMovementAt`, `LastMovementType`, `LastMovementRefId`
 
-### Required Environment Parameters
-- `parameters('SharePointSiteUrl')` - Your SharePoint site URL
-- `parameters('AdminEmail')` - Email address for critical alerts
+### Required Environment Variables (Dataverse)
+- `environment('SharePointSiteUrl')` - Your SharePoint site URL
+- `environment('AdminEmail')` - Email address for critical alerts
+
+**Note**: Power Automate cloud flows use `environment()` function for Dataverse environment variables, not `parameters()` which is used in Logic Apps.
 
 ### Required SharePoint Lists
 Four lists must be created with exact column names:
@@ -65,11 +69,27 @@ Four lists must be created with exact column names:
 4. **PO List** - Purchase order validation (for ISSUE transactions)
 
 ### Expression Syntax Notes
-- Choice column access: Use `triggerOutputs()?['body/PostStatus']` (if it shows as object, use `?['Value']`)
+- Choice column access:
+  - When SharePoint returns string: `triggerOutputs()?['body/PostStatus']`
+  - When SharePoint returns object: `triggerOutputs()?['body/PostStatus']?['Value']`
+  - Example condition: `@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')`
 - Always escape single quotes in filters: `replace(variables('vPart'),'''','''''')`
 - Float conversion required for calculations: `float(variables('vQty'))`
 - Null handling with coalesce: `coalesce(triggerBody()?['FieldName'], '')`
 - SharePoint list internal name encoding: spaces become `_x0020_`, hyphens become `_x002d_`
+
+### Indexing Recommendations
+
+**Tech Transactions List**:
+- Index: `PartNumber`, `Batch`, `PONumber`, `PostStatus`
+- These support filter queries in Get items operations
+
+**On-Hand Material List**:
+- Index: `PartNumber`, `Batch`
+- Consider composite key column: `=[PartNumber]&"-"&[Batch]` (indexed)
+
+**PO List**:
+- Index: `PONumber` (required for ISSUE validation lookups)
 
 ## Documentation Maintenance
 
@@ -102,6 +122,8 @@ Each flow includes specific test cases:
 - Daily Recalc: Process 10,000+ items
 - Error Rate: <0.1% target
 
+**Assumptions**: Standard connectors, SharePoint list indexes configured, low contention, E3/E5 tenant with proper throttling limits
+
 ## Common Troubleshooting Areas
 
 1. **Trigger Conditions**: Exact syntax and Choice column value access
@@ -110,7 +132,13 @@ Each flow includes specific test cases:
 4. **Float Conversions**: Required for all numeric operations
 5. **Metadata Type Names**: SharePoint list internal names - e.g., `SP.Data.On_x002d_Hand_x0020_MaterialListItem`
 6. **Concurrency Issues**: Set trigger concurrency to 1 for ISSUE flows to prevent race conditions
-7. **HTTP Status Codes**: Lock success = 204, check with `equals(outputs('Lock_Action')?['statusCode'], 204)`
+7. **HTTP Status Codes**: 
+   - Lock success = 204, check with `equals(outputs('Lock_Action')?['statusCode'], 204)`
+   - 412 Precondition Failed = ETag mismatch, implement retry:
+     ```
+     @equals(outputs('HTTP_Request')?['statusCode'], 412)
+     // In Do Until loop: retry up to 3 times with 2-second delay
+     ```
 
 ## Important Files for Reference
 

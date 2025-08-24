@@ -31,7 +31,7 @@ Transactions progress through these statuses:
 3. Name: `TT - Intake Validate`
 4. Choose trigger: **"When an item is created - SharePoint"**
 5. Configure:
-   - Site Address: `@{parameters('SharePointSiteUrl')}`
+   - Site Address: `@{environment('SharePointSiteUrl')}`
    - List Name: Tech Transactions
 6. **Trigger Settings:**
    - Click three dots → Settings
@@ -135,7 +135,7 @@ Add **"Get items - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Filter Query:
 
@@ -291,7 +291,7 @@ Add **"Get items - SharePoint"** action (in Yes of 10a):
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: PO List
 - Filter Query: `PONumber eq '@{replace(variables('vPO'), '''', '''''')}'`
 - Top Count: 1
@@ -325,7 +325,7 @@ Add **"Update item - SharePoint"** action (at the end of Try scope):
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `triggerBody()?['ID']`
 - Fields:
@@ -356,7 +356,7 @@ Add **"Create item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
   - FlowName: `TT - Intake Validate`
@@ -372,7 +372,7 @@ Add **"Update item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `triggerBody()?['ID']`
 - Fields:
@@ -386,7 +386,7 @@ Add **"Send an email (V2)"** action:
 
 **Configure:**
 
-- To: `@{parameters('AdminEmail')}`
+- To: `@{environment('AdminEmail')}`
 - Subject: `CRITICAL: Intake Validation Flow Error`
 - Body:
 

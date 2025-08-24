@@ -858,7 +858,7 @@ Body:
 
 ```
 Action: Send message to Azure SignalR
-Connection String: @{parameters('SignalRConnection')}
+Connection String: @{environment('SignalRConnection')}
 Hub Name: DashboardHub
 Target: updateMetric
 Arguments:
