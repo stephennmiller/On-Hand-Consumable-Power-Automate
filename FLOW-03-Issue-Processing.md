@@ -268,7 +268,7 @@ Inside the loop:
 
 2. **Condition** - Check if lock failed with 412:
    - Condition: `@and(equals(variables('vLockAcquired'), false), equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 412))`
-   
+  
    **If Yes (412 - Retry needed):**
    - **Delay** action: 2 seconds
    - **Get items - SharePoint** (Re-fetch with new ETag):

@@ -11,6 +11,7 @@ This is a **documentation-only repository** for implementing an enterprise-grade
 ## Project Structure
 
 ### Core Implementation Files (Build in Order)
+
 1. `START-HERE.md` - Entry point with prerequisites and quick test plan
 2. `FLOW-01-Intake-Validation.md` - Transaction validation flow
 3. `FLOW-02-Receive-Processing.md` - Process RECEIVE transactions  
@@ -20,6 +21,7 @@ This is a **documentation-only repository** for implementing an enterprise-grade
 7. `FLOW-06-Monitoring-Alerts.md` - System monitoring (optional)
 
 ### Reference Documentation
+
 Located in `reference-docs/`:
 - Architecture overviews, error handling patterns, performance optimization
 - Advanced topics like real-time processing, migration plans, automated testing
@@ -28,6 +30,7 @@ Located in `reference-docs/`:
 ## Key Architecture Concepts
 
 ### Transaction Flow Pattern
+
 1. **New** → Transaction created in Tech Transactions list
 2. **Validated** → Passes business rules (triggers processing flows)
 3. **Processing** → Being handled by receive/issue flows
@@ -35,6 +38,7 @@ Located in `reference-docs/`:
 5. **Error** → Failed with logged reason
 
 ### Concurrency Control
+
 - Uses ETag-based optimistic locking for inventory updates
 - ProcessingLock field prevents race conditions
 - Trigger concurrency set to 1 for ISSUE flows
@@ -42,6 +46,7 @@ Located in `reference-docs/`:
   - Note: RECEIVE flows can use 2-5 parallelism for better throughput
 
 ### Error Recovery
+
 - Automatic rollback on failures after inventory modification
 - Circuit breaker pattern in advanced flows
 - Comprehensive error logging to Flow Error Log list
@@ -49,6 +54,7 @@ Located in `reference-docs/`:
 ## Critical Implementation Details
 
 ### SharePoint Column Names (Exact Names Required)
+
 The flows use these specific column names:
 - Tech Transactions: `Qty` (not Quantity)
 - On-Hand Material: `OnHandQty` (not TotalQuantity)
@@ -56,12 +62,14 @@ The flows use these specific column names:
 - On-Hand columns: `IsActive`, `LastMovementAt`, `LastMovementType`, `LastMovementRefId`
 
 ### Required Environment Variables (Dataverse)
+
 - `environment('SharePointSiteUrl')` - Your SharePoint site URL
 - `environment('AdminEmail')` - Email address for critical alerts
 
 **Note**: Power Automate cloud flows use `environment()` function for Dataverse environment variables, not `parameters()` which is used in Logic Apps.
 
 ### Required SharePoint Lists
+
 Four lists must be created with exact column names:
 1. **Tech Transactions** - Incoming transaction records
 2. **On-Hand Material** - Current inventory state
@@ -69,6 +77,7 @@ Four lists must be created with exact column names:
 4. **PO List** - Purchase order validation (for ISSUE transactions)
 
 ### Expression Syntax Notes
+
 - Choice column access:
   - When SharePoint returns string: `triggerOutputs()?['body/PostStatus']`
   - When SharePoint returns object: `triggerOutputs()?['body/PostStatus']?['Value']`
@@ -134,7 +143,7 @@ Each flow includes specific test cases:
 4. **Float Conversions**: Required for all numeric operations
 5. **Metadata Type Names**: SharePoint list internal names - e.g., `SP.Data.On_x002d_Hand_x0020_MaterialListItem`
 6. **Concurrency Issues**: Set trigger concurrency to 1 for ISSUE flows to prevent race conditions
-7. **HTTP Status Codes**: 
+7. **HTTP Status Codes**:
    - Lock success = 204, check with `equals(outputs('Lock_Action')?['statusCode'], 204)`
    - 412 Precondition Failed = ETag mismatch, implement retry:
      ```powerautomate
