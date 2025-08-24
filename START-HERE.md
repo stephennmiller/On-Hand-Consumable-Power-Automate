@@ -10,6 +10,9 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 
 - [ ] Access to SharePoint site
 - [ ] Power Automate license
+- [ ] Set up environment parameters:
+  - **SharePointSiteUrl**: Your SharePoint site URL
+  - **AdminEmail**: Email address for critical alerts
 - [ ] Create these SharePoint lists with exact column names and types:
 
 #### Tech Transactions List
@@ -22,8 +25,10 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | PartNumber | Single line of text | Required |
 | PartDescription | Single line of text | Optional |
 | Batch | Single line of text | Required |
-| Bin | Single line of text | Optional |
-| Quantity | Number | Required, Min: 0.01 |
+| Location | Single line of text | Optional |
+| UOM | Single line of text | Optional |
+| PONumber | Single line of text | Optional (Required for ISSUE) |
+| Qty | Number | Required, Min: 0.01 |
 | PostStatus | Choice | Choices: New, Validated, Processing, Posted, Error (Default: New) |
 | ProcessingLock | Single line of text | Optional (for concurrency) |
 | ErrorMessage | Multiple lines of text | Optional |
@@ -36,9 +41,13 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | PartNumber | Single line of text | Required |
 | PartDescription | Single line of text | Optional |
 | Batch | Single line of text | Required |
-| TotalQuantity | Number | Required, Default: 0 |
-| LastTransactionID | Single line of text | Optional |
-| LastUpdated | Date and Time | Optional |
+| Location | Single line of text | Optional |
+| UOM | Single line of text | Optional |
+| OnHandQty | Number | Required, Default: 0 |
+| IsActive | Yes/No | Required, Default: Yes |
+| LastMovementAt | Date and Time | Optional |
+| LastMovementType | Single line of text | Optional |
+| LastMovementRefId | Single line of text | Optional |
 | ProcessingLock | Single line of text | Optional (for concurrency) |
 
 #### Flow Error Log List
@@ -49,7 +58,19 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | ErrorMessage | Multiple lines of text | Required |
 | FlowRunURL | Hyperlink | Optional |
 | ItemID | Single line of text | Optional |
+| ItemID | Single line of text | Optional |
 | Timestamp | Date and Time | Required |
+
+#### PO List (Required for ISSUE validation)
+
+| Column Name | Type | Settings |
+|-------------|------|----------|
+| Title | Single line of text | Default column |
+| PONumber | Single line of text | Required, Indexed |
+| VendorName | Single line of text | Optional |
+| OrderDate | Date and Time | Optional |
+| Status | Single line of text | Optional |
+| IsOpen | Yes/No | Required, Default: Yes |
 
 ### Phase 1: Core System (Build These First)
 
@@ -124,10 +145,10 @@ After building Phase 1, test with this sequence:
 
 | Problem | Solution |
 |---------|----------|
-| "Flow not triggering" | Verify trigger condition: `@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')` |
+| "Flow not triggering" | Verify trigger condition: `@equals(triggerOutputs()?['body/PostStatus'], 'Validated')` Note: If PostStatus shows as object, use `?['Value']` |
 | "PostStatus not updating" | Check exact column name spelling and that it's a Choice column with correct values |
 | "Duplicate inventory rows" | Fix OData filter: `PartNumber eq '@{variables('PartNumber')}' and Batch eq '@{variables('Batch')}'` |
-| "Negative inventory allowed" | Add condition in FLOW-03 Step 12: `greater(variables('CurrentQuantity'), variables('TransactionQuantity'))` |
+| "Negative inventory allowed" | Add condition in FLOW-03 Step 12: `greater(outputs('Compute_New_Qty'), 0)` |
 | "ETag mismatch errors" | Ensure using `outputs('Get_inventory_record')?['body/@odata.etag']` in Update item |
 
 ## File Organization
