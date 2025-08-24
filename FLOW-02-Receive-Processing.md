@@ -229,9 +229,16 @@ Add **"Condition"** action:
 
 **Configure Run After:** Set to run when "Update Existing On-Hand with ETag" has failed
 
-**Condition:** `@equals(outputs('Update_Existing_On-Hand_with_ETag')?['statusCode'], 412)`
+**Condition:** 
+```powerautomate
+@or(
+  equals(outputs('Update_Existing_On-Hand_with_ETag')?['statusCode'], 412),
+  equals(outputs('Update_Existing_On-Hand_with_ETag')?['statusCode'], 429),
+  greaterOrEquals(outputs('Update_Existing_On-Hand_with_ETag')?['statusCode'], 500)
+)
+```
 
-**If Yes (Conflict - Last Writer Wins):**
+**If Yes (Retry Needed - 412/429/5xx):**
 - Add a **"Delay"** action: 2 seconds
 - Add **"Get items - SharePoint"** to fetch latest values
 - Recalculate and update with new quantity

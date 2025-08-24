@@ -361,7 +361,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: `@{outputs('Get_Current_ETag_For_Unlock')?['@odata.etag']}`
+  - IF-MATCH: `@{body('Get_Current_ETag_For_Unlock')?['@odata.etag']}`
 - Body:
 ```json
 {
@@ -411,7 +411,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: `@{outputs('Get_Current_ETag_For_Update')?['@odata.etag']}`
+  - IF-MATCH: `@{body('Get_Current_ETag_For_Update')?['@odata.etag']}`
 - Body:
 ```json
 {
