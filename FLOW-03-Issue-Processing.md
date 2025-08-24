@@ -459,7 +459,7 @@ Add **"Update item - SharePoint"** action:
 
 - Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: On-Hand Material
-- Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
+- Id: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']}`
 - Fields:
   - Title: `@{variables('vOriginalTitle')}`
   - OnHandQty: `@{variables('vOriginalQty')}`
@@ -478,9 +478,9 @@ Add **"Create item - SharePoint"** action:
 - Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
-  - FlowName: `TT - Issue → OnHand Upsert`
+  - Title: `TT - Issue → OnHand Upsert`
+  - ItemID: `@{variables('vId')}`
   - ErrorMessage: `Rollback executed for transaction @{variables('vId')}`
-  - Severity: `Critical`
   - Timestamp: `utcNow()`
 
 #### Step 16b: Always Execute - Error Logging (Outside the condition)
@@ -492,10 +492,9 @@ Add **"Create item - SharePoint"** action:
 - Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
-  - FlowName: `TT - Issue → OnHand Upsert`
+  - Title: `TT - Issue → OnHand Upsert`
+  - ItemID: `@{variables('vId')}`
   - ErrorMessage: `@{string(result('Atomic_Transaction_-_Issue_Processing'))}`
-  - RecordId: `@{variables('vId')}`
-  - Severity: `Critical`
   - Timestamp: `utcNow()`
 
 ##### Update Transaction with Error
