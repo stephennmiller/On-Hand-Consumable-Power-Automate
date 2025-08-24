@@ -274,7 +274,7 @@ Add **"Set variable"** - vLockAcquired:
 
 Add **"Condition"** - Check if retry needed:
 
-**Condition:** 
+**Condition:**
 ```powerautomate
 @and(
   equals(variables('vLockAcquired'), false),
@@ -294,7 +294,7 @@ Add **"Condition"** - Check if retry needed:
 3. **Compose** - Update ETag:
    - Action Name: "Capture_ETag"
    - Inputs: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock_Retry')?['value'])?['@odata.etag']}`
-4. **Increment variable** - RetryCount: 
+4. **Increment variable** - RetryCount:
    - Value: 1
 
 After the loop:
