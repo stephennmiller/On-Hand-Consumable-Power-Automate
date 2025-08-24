@@ -386,7 +386,7 @@ Add **"Send an HTTP request to SharePoint"** action:
   - PostStatus: `Error`
   - PostMessage:
 ```powerautomate
-Insufficient inventory. Available: @{formatNumber(variables('vOriginalQty'), 'G', 'en-US')}, Requested: @{formatNumber(variables('vQty'), 'G', 'en-US')}
+Insufficient inventory. Available: @{round(variables('vOriginalQty'), 2)}, Requested: @{round(variables('vQty'), 2)}
 ```
 - PostedAt: `utcNow()`
 
@@ -456,7 +456,7 @@ Add **"Update item - SharePoint"** action:
 - Id: `@{variables('vId')}`
 - Fields:
   - PostStatus: `Posted`
-  - PostMessage: `Successfully issued from inventory. Remaining: @{formatNumber(outputs('Compute_New_Qty'), 'G', 'en-US')}`
+  - PostMessage: `Successfully issued from inventory. Remaining: @{round(outputs('Compute_New_Qty'), 2)}`
   - PostedAt: `utcNow()`
 - **Settings:**
   - Retry Policy: Fixed Interval
@@ -523,10 +523,10 @@ Then, add **"Send an HTTP request to SharePoint"** action:
   },
   "Title": "@{variables('vOriginalTitle')}",
   "OnHandQty": @{variables('vOriginalQty')},
+  "IsActive": @{if(greater(variables('vOriginalQty'), 0), true, false)},
   "LastMovementAt": "@{utcNow()}",
   "LastMovementType": "Rollback-Issue",
-  "LastMovementRefId": "ROLLBACK-@{variables('vId')}",
-  "ProcessingLock": false
+  "LastMovementRefId": "ROLLBACK-@{variables('vId')}"
 }
 ```
 - **Settings:**
@@ -708,7 +708,7 @@ This maintains a safety stock of 10 units.
 ### Format Error Message with Locale-Safe Numbers
 
 ```powerautomate
-Insufficient inventory. Available: @{formatNumber(variables('vOriginalQty'), 'G', 'en-US')}, Requested: @{formatNumber(variables('vQty'), 'G', 'en-US')}
+Insufficient inventory. Available: @{round(variables('vOriginalQty'), 2)}, Requested: @{round(variables('vQty'), 2)}
 ```
 
 ## Next Steps

@@ -217,7 +217,7 @@ Add **"Send an HTTP request to SharePoint"** action:
     "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
   },
   "Title": "@{variables('vOriginalTitle')}",
-  "OnHandQty": @{float(formatNumber(add(float(coalesce(first(body('Get_OnHand_for_Part_Batch')?['value'])?['OnHandQty'], 0)), float(variables('vQty'))), 'G', 'en-US'))},
+  "OnHandQty": @{round(add(float(coalesce(first(body('Get_OnHand_for_Part_Batch')?['value'])?['OnHandQty'], 0)), float(variables('vQty'))), 2)},
   "LastMovementAt": "@{utcNow()}",
   "LastMovementType": "Receive",
   "LastMovementRefId": "@{variables('vId')}",
@@ -270,7 +270,7 @@ In the **No** branch, add **"Create item - SharePoint"** action:
   - Batch: `@{variables('vBatch')}`
   - UOM: `@{variables('vUOM')}`
   - Location: `@{if(greater(length(variables('vLoc')), 0), variables('vLoc'), null)}`
-  - OnHandQty: `@{float(formatNumber(variables('vQty'), 'G', 'en-US'))}`
+  - OnHandQty: `@{round(float(variables('vQty')), 2)}`
   - LastMovementAt: `utcNow()`
   - LastMovementType: `Receive`
   - LastMovementRefId: `@{variables('vId')}`
@@ -439,16 +439,16 @@ Add **"Compose"** action at the end:
 
 ## Expression Reference
 
-### Add Quantities with Locale-Safe Formatting
+### Add Quantities with 2-Decimal Rounding
 
 ```powerautomate
-float(formatNumber(
+round(
   add(
     float(first(body('Get_OnHand_for_Part_Batch')?['value'])?['OnHandQty']),
     float(variables('vQty'))
   ),
-  'G', 'en-US'
-))
+  2
+)
 ```
 
 ### Get First Item ID

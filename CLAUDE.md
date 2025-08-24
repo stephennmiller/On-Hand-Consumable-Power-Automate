@@ -40,7 +40,8 @@ Located in `reference-docs/`:
 ### Concurrency Control
 
 - Uses ETag-based optimistic locking for inventory updates
-- ProcessingLock field prevents race conditions
+- ETag-based optimistic locking is the primary mechanism
+- Optional: You may add a boolean `ProcessingLock` column for UI clarity/guardrails, but it is not required by the provided flows
 - Trigger concurrency set to 1 for ISSUE flows
   - Flow settings path: Trigger → Settings → Concurrency Control → On, Degree of Parallelism: 1
   - Note: RECEIVE flows can use 2-5 parallelism for better throughput
@@ -85,6 +86,8 @@ Four lists must be created with exact column names:
   - Example condition (string): `@equals(triggerOutputs()?['body/PostStatus'], 'Validated')`
 - Always escape single quotes in filters: `replace(variables('vPart'),'''','''''')`
 - Float conversion required for calculations: `float(variables('vQty'))`
+- Round to 2 decimals for quantities: `round(float(variables('vQty')), 2)`
+- Avoid formatNumber before math operations - format only for display
 - Null handling with coalesce: `coalesce(triggerBody()?['FieldName'], '')`
 - SharePoint list internal name encoding: spaces become `_x0020_`, hyphens become `_x002d_`
 
