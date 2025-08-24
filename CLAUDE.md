@@ -90,11 +90,11 @@ Four lists must be created with exact column names:
 ### Indexing Recommendations
 
 **Tech Transactions List**:
-- Index: `PartNumber`, `Batch`, `PONumber`, `PostStatus`
+- Index: `PartNumber`, `Batch`, `PONumber`, `PostStatus`, `UOM`, `Location`
 - These support filter queries in Get items operations
 
 **On-Hand Material List**:
-- Index: `PartNumber`, `Batch`
+- Index: `PartNumber`, `Batch`, `UOM`, `Location`
 - Consider composite key column: `=[PartNumber]&"-"&[Batch]` (indexed)
 
 **PO List**:
