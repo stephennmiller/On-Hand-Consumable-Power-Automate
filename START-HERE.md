@@ -69,7 +69,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | Column Name | Type | Settings |
 |-------------|------|----------|
 | Title | Single line of text | Default column |
-| PONumber | Single line of text | Required, Indexed |
+| PONumber | Single line of text | Required, Indexed, Enforce unique values |
 | VendorName | Single line of text | Optional |
 | OrderDate | Date and Time | Optional |
 | Status | Single line of text | Optional |
@@ -148,10 +148,10 @@ After building Phase 1, test with this sequence:
 
 | Problem | Solution |
 |---------|----------|
-| "Flow not triggering" | Verify trigger condition: `@equals(triggerOutputs()?['body/PostStatus'], 'Validated')` Note: If PostStatus shows as object, use `?['Value']` |
+| "Flow not triggering" | Verify trigger condition (use the one that matches your trigger output shape):<br/>`@equals(triggerOutputs()?['body/PostStatus'], 'Validated')`<br/>or (if PostStatus is an object):<br/>`@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')` |
 | "PostStatus not updating" | Check exact column name spelling and that it's a Choice column with correct values |
 | "Duplicate inventory rows" | Fix OData filter: `PartNumber eq '@{variables('PartNumber')}' and Batch eq '@{variables('Batch')}'` |
-| "Negative inventory allowed" | Add condition in FLOW-03 Step 12: `greater(outputs('Compute_New_Qty'), 0)` |
+| "Negative inventory allowed" | Add condition in FLOW-03 Step 12: `greaterOrEquals(outputs('Compute_New_Qty'), 0)` to allow exact depletion |
 | "ETag mismatch errors" | Ensure using `outputs('Get_inventory_record')?['body/@odata.etag']` in Update item |
 
 ## File Organization

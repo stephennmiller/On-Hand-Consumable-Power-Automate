@@ -175,7 +175,7 @@ Add **"Condition"** action:
 **If No:**
 
 - Add **"Update item - SharePoint"** action
-- Site Address: Your site
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `triggerBody()?['ID']`
 - Fields:
@@ -295,7 +295,7 @@ Add **"Get items - SharePoint"** action (in Yes of 10a):
 - List Name: PO List
 - Filter Query: `PONumber eq '@{replace(variables('vPO'), '''', '''''')}'`
 - Top Count: 1
-- **Select Query:** `PONumber,Status,VendorName,OrderDate`
+- **Select Query:** `PONumber,Status,VendorName,OrderDate,IsOpen`
 - **Settings:**
   - Retry Policy: Exponential
   - Count: 3
@@ -359,11 +359,10 @@ Add **"Create item - SharePoint"** action:
 - Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
-  - FlowName: `TT - Intake Validate`
+  - Title: `TT - Intake Validate`
   - ErrorMessage: `@{concat('Error validating transaction ID: ', triggerBody()?['ID'], ' - ', substring(string(result('Try_-_Main_Logic')),0,min(4000,length(string(result('Try_-_Main_Logic'))))))}`
-  - StackTrace: `@{variables('vFlowRunId')}`
-  - RecordId: `@{triggerBody()?['ID']}`
-  - Severity: `Critical`
+  - FlowRunURL: `@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', variables('vFlowRunId'))}`
+  - ItemID: `@{triggerBody()?['ID']}`
   - Timestamp: `utcNow()`
 
 #### Step 12b: Update Transaction with Error

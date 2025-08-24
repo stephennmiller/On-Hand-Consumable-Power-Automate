@@ -122,6 +122,12 @@ Inside the Atomic Transaction scope, add 10 **"Initialize variable"** actions:
 - **Type:** Boolean
 - **Value:** `false` (tracks if inventory was modified)
 
+#### Variable 11: RetryCount
+
+- **Name:** RetryCount
+- **Type:** Integer
+- **Value:** `0` (for ETag lock retry logic)
+
 ### Step 5: Add Throttle Protection
 
 Add **"Delay"** action:
@@ -245,19 +251,40 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Retry Policy: None
 - Configure run after: Continue if succeeded OR failed
 
-### Step 10a: Check Lock Success
+### Step 10a: Check Lock Success with Retry
 
-Add **"Set variable"** action:
+Add **"Do Until"** loop:
 
-**Name:** vLockAcquired
-**Value:** `@{if(equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 204), true, false)}`
+**Settings:**
+- Count: 3
+- Timeout: PT1M
 
-Add **"Condition"** action:
+**Condition:** `@or(equals(variables('vLockAcquired'), true), greater(variables('RetryCount'), 2))`
+
+Inside the loop:
+
+1. **Set variable** - vLockAcquired:
+   - Value: `@{if(equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 204), true, false)}`
+
+2. **Condition** - Check if lock failed with 412:
+   - Condition: `@and(equals(variables('vLockAcquired'), false), equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 412))`
+   
+   **If Yes (412 - Retry needed):**
+   - **Delay** action: 2 seconds
+   - **Get items - SharePoint** (Re-fetch with new ETag):
+     - Same configuration as Step 6
+   - **Compose** - Capture new ETag:
+     - Inputs: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock_Retry')?['value'])?['@odata.etag']}`
+   - **Send HTTP request** (Retry lock with new ETag):
+     - Same as Step 10 but with new ETag
+   - **Increment variable** - RetryCount: 1
+
+After the loop:
 
 **Condition:** `@equals(variables('vLockAcquired'), false)`
 
-**If Yes (Lock Failed):**
-- Add **"Terminate"** action with Status: Failed and Message: "Could not acquire lock - concurrent modification detected"
+**If Yes (Lock Failed after retries):**
+- Add **"Terminate"** action with Status: Failed and Message: "Could not acquire lock after 3 attempts - concurrent modification detected"
 
 ### Step 11: Compute New Quantity
 

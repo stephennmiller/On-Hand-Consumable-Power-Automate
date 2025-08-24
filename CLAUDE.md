@@ -103,6 +103,8 @@ When updating documentation:
 ## Known Complexities
 
 - **FLOW-03 Locking Pattern**: Uses HTTP MERGE with ETag for optimistic locking, requires careful error handling
+  - Send `If-Match: <etag>` with MERGE/Update; success returns 204 No Content
+  - On 412 (Precondition Failed), re-read the item to get latest ETag, reapply changes, retry with bounded exponential backoff (max 3 attempts)
 - **Rollback Mechanism**: Step 16 in FLOW-03 implements compensating transactions
 - **Batch Processing**: FLOW-05 uses SharePoint batch APIs for 5x performance improvement
 - **Circuit Breaker**: Advanced flows implement circuit breaker pattern to prevent cascade failures
@@ -135,7 +137,7 @@ Each flow includes specific test cases:
 7. **HTTP Status Codes**: 
    - Lock success = 204, check with `equals(outputs('Lock_Action')?['statusCode'], 204)`
    - 412 Precondition Failed = ETag mismatch, implement retry:
-     ```
+     ```powerautomate
      @equals(outputs('HTTP_Request')?['statusCode'], 412)
      // In Do Until loop: retry up to 3 times with 2-second delay
      ```
