@@ -125,7 +125,9 @@ This prevents SharePoint throttling when processing multiple transactions.
 
 Add **"Get items - SharePoint"** action:
 
-**Action Name:** "Get On-Hand for Part+Batch (Single Record)"
+**Action Name:** "Get_On-Hand_for_Part+Batch"
+
+**Note:** Power Automate generates internal action names based on what you type. To ensure expressions work correctly, rename this action to exactly "Get_On-Hand_for_Part+Batch" (without spaces or parentheses) in the action's settings.
 
 **Configure:**
 
@@ -227,7 +229,7 @@ Add **"Condition"** action:
 
 **Configure Run After:** Set to run when "Update Existing On-Hand with ETag" has failed
 
-**Condition:** `@equals(outputs('Update_Existing_On-Hand_with_ETag')['statusCode'], 412)`
+**Condition:** `@equals(outputs('Update_Existing_On-Hand_with_ETag')?['statusCode'], 412)`
 
 **If Yes (Conflict - Last Writer Wins):**
 - Add a **"Delay"** action: 2 seconds

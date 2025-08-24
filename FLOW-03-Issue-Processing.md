@@ -15,8 +15,8 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 
 ```powerautomate
 @and(
-  equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
-  equals(toUpper(triggerOutputs()?['body/TransactionType']), 'ISSUE')
+  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
+  equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE')
 )
 ```
 
@@ -139,7 +139,9 @@ Add **"Delay"** action:
 
 Add **"Get items - SharePoint"** action:
 
-**Action Name:** "Get On-Hand for Part+Batch with Lock"
+**Action Name:** "Get_On-Hand_for_Part+Batch_with_Lock"
+
+**Note:** Power Automate generates internal action names from what you type. To ensure expressions work correctly, rename this action to exactly "Get_On-Hand_for_Part+Batch_with_Lock" (with underscores, not spaces) in the action's settings.
 
 **Configure:**
 
@@ -222,11 +224,23 @@ Add **"Initialize variable"** action:
 **Type:** Boolean
 **Value:** `false`
 
-### Step 10: Attempt Optimistic Lock with ETag
+### Step 10: Attempt Optimistic Lock with ETag (Bounded Retries)
+
+Add **"Do Until"** loop for lock acquisition:
+
+**Settings:**
+- Count: 3
+- Timeout: PT1M
+
+**Condition:** `@or(equals(variables('vLockAcquired'), true), greater(variables('RetryCount'), 2))`
+
+Inside each iteration of the loop:
+
+#### 10a. Send Lock Request
 
 Add **"Send an HTTP request to SharePoint"** action:
 
-**Action Name:** "Lock On-Hand with ETag"
+**Action Name:** "Lock_On-Hand_with_ETag_Attempt"
 
 **Configure:**
 
@@ -251,33 +265,37 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Retry Policy: None
 - Configure run after: Continue if succeeded OR failed
 
-### Step 10a: Check Lock Success with Retry
+#### 10b. Check Lock Success
 
-Add **"Do Until"** loop:
+Add **"Set variable"** - vLockAcquired:
+- Value: `@{equals(outputs('Lock_On-Hand_with_ETag_Attempt')?['statusCode'], 204)}`
 
-**Settings:**
-- Count: 3
-- Timeout: PT1M
+#### 10c. Check if Retry Needed
 
-**Condition:** `@or(equals(variables('vLockAcquired'), true), greater(variables('RetryCount'), 2))`
+Add **"Condition"** - Check if retry needed:
 
-Inside the loop:
+**Condition:** 
+```powerautomate
+@and(
+  equals(variables('vLockAcquired'), false),
+  or(
+    equals(outputs('Lock_On-Hand_with_ETag_Attempt')?['statusCode'], 412),
+    equals(outputs('Lock_On-Hand_with_ETag_Attempt')?['statusCode'], 429),
+    greaterOrEquals(outputs('Lock_On-Hand_with_ETag_Attempt')?['statusCode'], 500)
+  )
+)
+```
 
-1. **Set variable** - vLockAcquired:
-   - Value: `@{if(equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 204), true, false)}`
-
-2. **Condition** - Check if lock failed with 412:
-   - Condition: `@and(equals(variables('vLockAcquired'), false), equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 412))`
-  
-   **If Yes (412 - Retry needed):**
-   - **Delay** action: 2 seconds
-   - **Get items - SharePoint** (Re-fetch with new ETag):
-     - Same configuration as Step 6
-   - **Compose** - Capture new ETag:
-     - Inputs: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock_Retry')?['value'])?['@odata.etag']}`
-   - **Send HTTP request** (Retry lock with new ETag):
-     - Same as Step 10 but with new ETag
-   - **Increment variable** - RetryCount: 1
+**If Yes (Retry needed):**
+1. **Delay** action: PT2S (2 seconds)
+2. **Get items - SharePoint** (Re-fetch for new ETag):
+   - Same configuration as Step 6
+   - Action Name: "Get_On-Hand_for_Part+Batch_with_Lock_Retry"
+3. **Compose** - Update ETag:
+   - Action Name: "Capture_ETag"
+   - Inputs: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock_Retry')?['value'])?['@odata.etag']}`
+4. **Increment variable** - RetryCount: 
+   - Value: 1
 
 After the loop:
 
@@ -321,6 +339,20 @@ Add **"Condition"** action:
 
 **If Yes:**
 
+Add **"Get item - SharePoint"** action to refresh ETag:
+
+**Action Name:** "Get_Current_ETag_For_Unlock"
+
+- Site Address: `@{environment('SharePointSiteUrl')}`
+- List Name: On-Hand Material
+- Id: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']}`
+
+Add **"Compose"** action:
+
+**Action Name:** "Capture_Current_ETag"
+
+- Inputs: `@{outputs('Get_Current_ETag_For_Unlock')?['@odata.etag']}`
+
 Add **"Send an HTTP request to SharePoint"** action:
 
 - Site Address: `@{environment('SharePointSiteUrl')}`
@@ -329,7 +361,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: `*`
+  - IF-MATCH: `@{outputs('Capture_Current_ETag')}`
 - Body:
 ```json
 {
@@ -360,6 +392,20 @@ Add **"Send an HTTP request to SharePoint"** action:
 
 ### Step 13: Update On-Hand with Unlock (In YES Branch)
 
+Add **"Get item - SharePoint"** action to refresh ETag:
+
+**Action Name:** "Get_Current_ETag_For_Update"
+
+- Site Address: `@{environment('SharePointSiteUrl')}`
+- List Name: On-Hand Material
+- Id: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']}`
+
+Add **"Compose"** action:
+
+**Action Name:** "Capture_Update_ETag"
+
+- Inputs: `@{outputs('Get_Current_ETag_For_Update')?['@odata.etag']}`
+
 Add **"Send an HTTP request to SharePoint"** action:
 
 **Action Name:** "Update On-Hand Qty and Release Lock"
@@ -372,7 +418,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: `*`
+  - IF-MATCH: `@{outputs('Capture_Update_ETag')}`
 - Body:
 ```json
 {
