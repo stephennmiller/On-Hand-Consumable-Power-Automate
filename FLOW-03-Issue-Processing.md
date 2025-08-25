@@ -71,7 +71,7 @@ All subsequent steps (except final error handling) go inside this scope.
 
 ### Step 4: Initialize Variables
 
-Inside the Atomic Transaction scope, add 11 **"Initialize variable"** actions:
+Inside the Atomic Transaction scope, add 10 **"Initialize variable"** actions:
 
 #### Variable 1: vPartNumber
 
@@ -103,37 +103,37 @@ Inside the Atomic Transaction scope, add 11 **"Initialize variable"** actions:
 - **Type:** String
 - **Value:** `trim(coalesce(triggerBody()?['UOM'], ''))`
 
-#### Variable 6: vId
+#### Variable 5: vId
 
 - **Name:** vId
-- **Type:** String
-- **Value:** `triggerBody()?['ID']`
+- **Type:** Integer
+- **Value:** `int(triggerBody()?['ID'])`
 
-#### Variable 7: vPO
+#### Variable 6: vPO
 
 - **Name:** vPO
 - **Type:** String
 - **Value:** `trim(coalesce(triggerBody()?['PO']?['Value'], ''))`
 
-#### Variable 8: vFlowRunId
+#### Variable 7: vFlowRunId
 
 - **Name:** vFlowRunId
 - **Type:** String
 - **Value:** `workflow()?['run']?['name']`
 
-#### Variable 9: vOriginalQty
+#### Variable 8: vOriginalQty
 
 - **Name:** vOriginalQty
 - **Type:** Float
 - **Value:** `0` (will store original on-hand for rollback)
 
-#### Variable 10: vUpdateCompleted
+#### Variable 9: vUpdateCompleted
 
 - **Name:** vUpdateCompleted
 - **Type:** Boolean
 - **Value:** `false` (tracks if inventory was modified)
 
-#### Variable 11: RetryCount
+#### Variable 10: RetryCount
 
 - **Name:** RetryCount
 - **Type:** Integer

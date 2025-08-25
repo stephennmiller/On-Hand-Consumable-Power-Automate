@@ -315,10 +315,9 @@ Set Retry Policy to **None** for:
 
 4. **Float Conversions**: Required for all numeric operations
 
-5. **Metadata Type Names**: SharePoint list internal names - e.g., `SP.Data.On_x002d_HandMaterialListItem`
-   - Note: SharePoint encodes spaces as `_x0020_` and hyphens as `_x002d_` in the URL, but the metadata type name uses a simplified format
-   - To find the correct type name: Use the SharePoint REST API to get an item and check the `__metadata.type` field (when using verbose) or the `odata.type` field (when using minimalmetadata)
-   - When using `application/json;odata=nometadata`, the request body omits `__metadata`, while `verbose` expects it
+5. **Metadata Type Names**: When using `application/json;odata=nometadata`, omit `__metadata` entirely (preferred).
+   - If you must use verbose/minimalmetadata, fetch the exact `ListItemEntityTypeFullName` dynamically and use that value.
+   - Note: SharePoint encodes spaces (`_x0020_`) and hyphens (`_x002d_`) in the type name (e.g., `SP.Data.On_x002d_Hand_x0020_MaterialListItem`). Do not guess—always use the live value.
 
 6. **Concurrency Issues**: Set trigger concurrency to 1 for ISSUE flows to prevent race conditions
 
