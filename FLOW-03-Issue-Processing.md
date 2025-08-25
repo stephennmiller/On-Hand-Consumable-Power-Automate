@@ -15,15 +15,10 @@ Processes validated ISSUE and RETURNED transactions to remove inventory from the
 
 ```powerautomate
 @and(
-  or(
-    equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
-    equals(trim(coalesce(triggerOutputs()?['body/PostStatus']?['Value'], '')), 'Validated')
-  ),
+  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
   or(
     equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'),
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'ISSUE'),
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RETURNED'),
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'RETURNED')
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RETURNED')
   )
 )
 ```
@@ -36,7 +31,7 @@ Processes validated ISSUE and RETURNED transactions to remove inventory from the
 
 1. Go to Power Automate
 2. Click **"Create"** → **"Automated cloud flow"**
-3. Name: `TT - Issue → OnHand Upsert`
+3. Name: `TT - Issue/Returned → OnHand Decrement`
 4. Choose trigger: **"When an item is created or modified - SharePoint"**
 5. Configure:
    - Site Address: `@{environment('SharePointSiteUrl')}`
@@ -53,20 +48,18 @@ Processes validated ISSUE and RETURNED transactions to remove inventory from the
 
 ```powerautomate
 @and(
-  or(
-    equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
-    equals(trim(coalesce(triggerOutputs()?['body/PostStatus']?['Value'], '')), 'Validated')
-  ),
+  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
   or(
     equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'),
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'ISSUE'),
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RETURNED'),
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'RETURNED')
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RETURNED')
   )
 )
 ```
 
-1. Click **"Done"**
+5. Under **"Concurrency Control"**:
+   - Toggle to **On**
+   - Set **"Degree of Parallelism"** to **1** (critical for preventing race conditions)
+6. Click **"Done"**
 
 ### Step 3: Add Atomic Transaction Scope
 
@@ -80,11 +73,17 @@ All subsequent steps (except final error handling) go inside this scope.
 
 Inside the Atomic Transaction scope, add 10 **"Initialize variable"** actions:
 
-#### Variable 1: vPart
+#### Variable 1: vPartNumber
 
-- **Name:** vPart
+- **Name:** vPartNumber
 - **Type:** String
-- **Value:** `trim(coalesce(triggerBody()?['PartNumber'], ''))`
+- **Value:** `trim(coalesce(triggerBody()?['Part']?['Value'], ''))`
+
+#### Variable 1a: vPartId
+
+- **Name:** vPartId
+- **Type:** Integer
+- **Value:** `int(coalesce(triggerBody()?['Part']?['Id'], 0))`
 
 #### Variable 2: vBatch
 
@@ -104,11 +103,6 @@ Inside the Atomic Transaction scope, add 10 **"Initialize variable"** actions:
 - **Type:** String
 - **Value:** `trim(coalesce(triggerBody()?['UOM'], ''))`
 
-#### Variable 5: vLoc
-
-- **Name:** vLoc
-- **Type:** String
-- **Value:** `trim(coalesce(triggerBody()?['Location'], ''))`
 
 #### Variable 6: vId
 
@@ -120,7 +114,7 @@ Inside the Atomic Transaction scope, add 10 **"Initialize variable"** actions:
 
 - **Name:** vPO
 - **Type:** String
-- **Value:** `trim(coalesce(triggerBody()?['PONumber'], ''))`
+- **Value:** `trim(coalesce(triggerBody()?['PO']?['Value'], ''))`
 
 #### Variable 8: vFlowRunId
 
@@ -168,18 +162,13 @@ Add **"Get items - SharePoint"** action:
 - Filter Query:
 
 ```powerautomate
-(PartNumber eq '@{replace(variables('vPart'),'''','''''')}') and (Batch eq '@{replace(variables('vBatch'),'''','''''')}') and (UOM eq '@{replace(variables('vUOM'),'''','''''')}') and (IsActive eq true)
-```
-
-**Note:** If using Location field:
-
-```powerautomate
-(PartNumber eq '@{replace(variables('vPart'),'''','''''')}') and (Batch eq '@{replace(variables('vBatch'),'''','''''')}') and (UOM eq '@{replace(variables('vUOM'),'''','''''')}') and (Location eq '@{replace(variables('vLoc'),'''','''''')}') and (IsActive eq true)
+Part/Id eq @{variables('vPartId')} and Batch eq '@{replace(variables('vBatch'),'''','''''')}' and UOM eq '@{replace(variables('vUOM'),'''','''''')}' and IsActive eq true
 ```
 
 - Top Count: 1
 - **Order By:** `Modified desc`
-- **Select Query:** `ID,OnHandQty,PartNumber,Batch,UOM,Location,Title`
+- **Select Query:** `ID,OnHandQty,Part,Batch,UOM,Title`
+- **Expand Query:** `Part`
 - **Settings:**
   - Retry Policy: Fixed Interval
   - Count: 3
@@ -208,7 +197,7 @@ Add **"Condition"** action:
 - Id: `@{variables('vId')}`
 - Fields:
   - PostStatus: `Error`
-  - PostMessage: `No inventory found for Part: @{variables('vPart')}, Batch: @{variables('vBatch')}`
+  - PostMessage: `No inventory found for Part: @{variables('vPartNumber')}, Batch: @{variables('vBatch')}`
   - PostedAt: `utcNow()`
 - Add **"Terminate"** action
   - Status: Succeeded
@@ -282,7 +271,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 ```json
 {
   "__metadata": {
-    "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
+    "type": "SP.Data.On_x002d_HandMaterialListItem"
   },
   "Title": "LOCKED-@{variables('vFlowRunId')}-@{utcNow('yyyyMMddHHmmss')}"
 }
@@ -392,7 +381,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 ```json
 {
   "__metadata": {
-    "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
+    "type": "SP.Data.On_x002d_HandMaterialListItem"
   },
   "Title": "@{variables('vOriginalTitle')}"
 }
@@ -442,7 +431,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 ```json
 {
   "__metadata": {
-    "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
+    "type": "SP.Data.On_x002d_HandMaterialListItem"
   },
   "Title": "@{variables('vOriginalTitle')}",
   "OnHandQty": @{outputs('Compute_New_Qty')},
@@ -541,7 +530,7 @@ Then, add **"Send an HTTP request to SharePoint"** action:
 ```json
 {
   "__metadata": {
-    "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
+    "type": "SP.Data.On_x002d_HandMaterialListItem"
   },
   "Title": "@{variables('vOriginalTitle')}",
   "OnHandQty": @{variables('vOriginalQty')},
@@ -563,7 +552,7 @@ Add **"Create item - SharePoint"** action:
 - Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
-  - Title: `TT - Issue → OnHand Upsert`
+  - Title: `TT - Issue/Returned → OnHand Decrement`
   - ItemID: `@{variables('vId')}`
   - ErrorMessage: `Rollback executed for transaction @{variables('vId')}`
   - Timestamp: `utcNow()`
@@ -577,7 +566,7 @@ Add **"Create item - SharePoint"** action:
 - Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
-  - Title: `TT - Issue → OnHand Upsert`
+  - Title: `TT - Issue/Returned → OnHand Decrement`
   - ItemID: `@{variables('vId')}`
   - ErrorMessage: `@{string(result('Atomic_Transaction_-_Issue_Processing'))}`
   - Timestamp: `utcNow()`
@@ -604,7 +593,7 @@ Add **"Send an email (V2)"** action:
 
 ```powerautomate
 Transaction ID: @{variables('vId')}
-Part: @{variables('vPart')}
+Part: @{variables('vPartNumber')}
 Batch: @{variables('vBatch')}
 Quantity: @{variables('vQty')}
 PO: @{variables('vPO')}
@@ -694,18 +683,18 @@ This maintains a safety stock of 10 units.
    - Test with decimal quantities (e.g., 10.5)
 
 3. **Can't find inventory**
-   - Ensure exact matches using trim(): `trim(coalesce(triggerBody()?['PartNumber'], ''))`
-   - Escape single quotes in filter: `replace(variables('vPart'),'''','''''')`
+   - Ensure exact matches using trim(): `trim(coalesce(triggerBody()?['Part']?['Value'], ''))`
+   - Escape single quotes in filter: `replace(variables('vPartNumber'),'''','''''')`
    - Verify IsActive = true in filter query
 
 4. **ETag/Lock errors**
    - Ensure using correct ETag capture from body not outputs: `@{body('Get_Current_ETag_For_Update')?['@odata.etag']}`
    - Verify Do Until loop with proper retry logic for 412/429/5xx errors
    - Check Lock status code: `equals(outputs('Lock_Status_Code'), 204)`
-   - Verify metadata type matches your list: `SP.Data.On_x002d_Hand_x0020_MaterialListItem`
+   - Verify metadata type matches your list: `SP.Data.On_x002d_HandMaterialListItem`
 
 5. **Performance issues**
-   - Ensure columns are indexed (PartNumber, Batch, UOM, Location)
+   - Ensure columns are indexed (Part, Batch, UOM)
    - Use Top Count: 1 on Get items
    - Set trigger concurrency to 1 to prevent race conditions
    - Add throttle delays between operations

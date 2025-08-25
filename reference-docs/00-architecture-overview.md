@@ -42,7 +42,6 @@ Create a SharePoint list named **"Tech Transactions"** with these columns:
 | Batch | Single line of text | Required |
 | Qty | Number | Required, Min: 0 |
 | UOM | Single line of text | Required |
-| Location | Single line of text | Optional |
 | PostStatus | Single line of text | Hidden from forms, Default: blank |
 | PostMessage | Multiple lines of text | Hidden from forms |
 | PostedAt | Date and Time | Hidden from forms |
@@ -56,7 +55,6 @@ Create a SharePoint list named **"On-Hand Material"** with these columns:
 |------------|------|----------|
 | PartNumber | Single line of text | Required, Indexed |
 | Batch | Single line of text | Required, Indexed |
-| Location | Single line of text | Optional |
 | UOM | Single line of text | Required |
 | OnHandQty | Number | Default: 0 |
 | LastMovementAt | Date and Time | Optional |
@@ -72,10 +70,10 @@ concat(
   '|',
   toUpper(trim(coalesce(variables('vBatch'), ''))),
   '|',
-  toUpper(trim(coalesce(variables('vLocation'), '')))
+  toUpper(trim(coalesce(variables('vUOM'), '')))
 )
 ```
-This ensures composite uniqueness for Part+Batch+Location combinations. All flows MUST populate OHKey when creating/updating On-Hand records.
+This ensures composite uniqueness for Part+Batch+UOM combinations. All flows MUST populate OHKey when creating/updating On-Hand records.
 
 ### 5. Flow Error Log (Monitoring)
 
@@ -123,7 +121,7 @@ All flows should use these connection references:
 ### Key Concepts
 
 - **Additive Model**: Each transaction is recorded as a movement
-- **Aggregated Inventory**: On-Hand Material stores one row per Part+Batch+Location
+- **Aggregated Inventory**: On-Hand Material stores one row per Part+Batch+UOM
 - **Transaction Math**:
   - RECEIVE: Adds quantity to OnHandQty
   - ISSUE: Subtracts quantity from OnHandQty

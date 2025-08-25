@@ -39,18 +39,23 @@ Located in `reference-docs/`:
 
 ### Transaction Types
 
-- **RECEIVE** → Adds inventory (incoming materials)
-- **ISSUE** → Removes inventory (materials consumed)
-- **RETURNED** → Removes inventory (defective/damaged items returned to vendor)
+- **RECEIVE** → Adds inventory (incoming materials from vendors)
+- **ISSUE** → Removes inventory (materials consumed by technicians)
+- **RETURNED** → Removes inventory (defective/damaged items returned to vendor for credit/replacement)
+  - Behaves identically to ISSUE in terms of inventory decrement
+  - Requires valid PO reference like ISSUE transactions
+  - Used for tracking defective materials sent back to suppliers
 
 ### Concurrency Control
 
 - Uses ETag-based optimistic locking for inventory updates (primary mechanism)
-- Optional: You may add a boolean `ProcessingLock` column for UI clarity/guardrails, but it is not required by the provided flows
-- Trigger concurrency set to 1 for ISSUE and RETURNED flows (both decrement inventory)
-  - Flow settings path: Trigger → Settings → Concurrency Control → On, Degree of Parallelism: 1
-  - Note: RECEIVE flows can use 2-5 parallelism for better throughput
-  - In the provided ISSUE/RETURNED flow, a Title-based sentinel is set during lock acquisition to provide visibility during retries (optional aid; ETag remains the primary lock)
+- ProcessingLock column is **optional** and not used by the provided flows - ETag is the primary and sufficient locking mechanism
+- Trigger concurrency settings:
+  - **ISSUE and RETURNED flows**: Set to 1 (critical for preventing race conditions)
+    - Flow settings path: Trigger → Settings → Concurrency Control → On, Degree of Parallelism: 1
+  - **RECEIVE flows**: Can use 3-5 parallelism for better throughput
+    - Flow settings path: Trigger → Settings → Concurrency Control → On, Degree of Parallelism: 3
+- In the ISSUE/RETURNED flow, a Title-based sentinel is set during lock acquisition to provide visibility during retries (optional aid; ETag remains the primary lock)
 
 ### Error Recovery
 
@@ -72,7 +77,7 @@ The flows use these specific column names:
 Recommended types/formatting:
 - `Qty`, `OnHandQty`: Number with 2 decimals (store as number; use `round()` only when writing).
 - `PONumber`: Single line of text (Enforce unique = Yes).
-- `UOM`, `Location`: Single line of text (or Choice if your flows expect strict options—document your choice consistently across files).
+- `UOM`: Choice (EA, BOX, CASE, PK, RL, LB, GAL, etc.)
 - `IsActive`: Yes/No.
 - `LastMovementAt`: Date and Time (UTC). Use `utcNow()` when writing.
   - Note: SharePoint list views may display in the site's local timezone; configure the column as "Include time" and be mindful of regional settings when validating timestamps.
@@ -235,12 +240,61 @@ Each flow includes specific test cases:
 
 ## Performance Targets
 
-- Basic Implementation: 500 transactions/hour
-- Optimized Implementation: 2,500 transactions/hour  
-- Daily Recalc: Process 10,000+ items
-- Error Rate: <0.1% target
+### Transaction Processing Rates
+- **Basic Implementation**: 500-800 transactions/hour
+  - Single flow instances, no parallelism
+  - Standard SharePoint connector actions
+- **Optimized Implementation**: 2,000-3,000 transactions/hour
+  - RECEIVE flows with Degree of Parallelism = 3
+  - Proper indexing on all filter columns
+  - Batch processing where applicable
+- **Daily Recalc**: Process 10,000-15,000 items
+  - Using SharePoint batch APIs
+  - 500-item pages with deterministic ordering
+- **Error Rate Target**: <0.1% in production
 
-**Assumptions**: Standard connectors, well-maintained list indexes, low contention, RECEIVE flows running with Degree of Parallelism > 1, and E3/E5 tenant throttling within norms.
+### Performance Baselines
+- **SharePoint Connector Limits**:
+  - 600 API calls per minute per flow
+  - 2000 API calls per minute per connection
+  - Response time: 200-500ms per operation (typical)
+- **Recommended Batch Sizes**:
+  - Get items: 500 items per page
+  - Batch updates: 100 items per batch
+  - Daily recalc: Process in 1000-item chunks
+
+**Assumptions**: Standard connectors with E3/E5 licensing, well-maintained list indexes, low contention (<10% concurrent updates), RECEIVE flows running with Degree of Parallelism = 3, and tenant throttling within normal limits.
+
+## Retry Policy Guidelines
+
+### When to Use Fixed Interval
+Use **Fixed Interval** retry for:
+- Simple read operations (Get items, Get item)
+- Non-critical updates that can tolerate delays
+- Operations unlikely to face contention
+- Settings: Count = 3, Interval = PT2S to PT5S
+
+### When to Use Exponential Backoff
+Use **Exponential Backoff** retry for:
+- Critical inventory updates
+- Operations that might face throttling
+- Create operations that might face unique constraints
+- Rollback operations (must succeed)
+- Settings: Count = 3-5, Initial Interval = PT10S, Max Interval = PT1M
+
+### When to Disable Retry (None)
+Set Retry Policy to **None** for:
+- Operations inside Do Until loops (to prevent double retry)
+- ETag-based update attempts (handle 412 manually)
+- Operations where you implement custom retry logic
+
+### HTTP Status Code Handling
+- **2xx**: Success, no retry needed
+- **400-404**: Client errors, do not retry (except 408, 429)
+- **408**: Request timeout, retry with exponential backoff
+- **412**: Precondition failed (ETag mismatch), refresh and retry
+- **429**: Too many requests, honor Retry-After header
+- **5xx**: Server errors, retry with exponential backoff
 
 ## Common Troubleshooting Areas
 
@@ -255,7 +309,9 @@ Each flow includes specific test cases:
 
 4. **Float Conversions**: Required for all numeric operations
 
-5. **Metadata Type Names**: SharePoint list internal names - e.g., `SP.Data.On_x002d_Hand_x0020_MaterialListItem`
+5. **Metadata Type Names**: SharePoint list internal names - e.g., `SP.Data.On_x002d_HandMaterialListItem`
+   - Note: SharePoint encodes spaces as `_x0020_` and hyphens as `_x002d_` in the URL, but the metadata type name uses a simplified format
+   - To find the correct type name: Use the SharePoint REST API to get an item and check the `__metadata.type` field
 
 6. **Concurrency Issues**: Set trigger concurrency to 1 for ISSUE flows to prevent race conditions
 

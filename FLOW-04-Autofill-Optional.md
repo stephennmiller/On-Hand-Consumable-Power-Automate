@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Automatically populates Description and UOM fields when a technician enters a PartNumber, improving data entry speed and accuracy.
+Automatically populates Description and UOM fields when a technician selects a Part from the lookup, improving data entry speed and accuracy.
 
 ## Flow Configuration
 
@@ -16,7 +16,7 @@ Automatically populates Description and UOM fields when a technician enters a Pa
 ```powerautomate
 @and(
   equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), ''),
-  greater(length(coalesce(triggerBody()?['PartNumber'], '')), 0)
+  greater(coalesce(triggerBody()?['Part']?['Id'], 0), 0)
 )
 ```
 
@@ -57,26 +57,32 @@ Skip this flow if:
 ```powerautomate
 @and(
   equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), ''),
-  greater(length(coalesce(triggerBody()?['PartNumber'], '')), 0)
+  greater(coalesce(triggerBody()?['Part']?['Id'], 0), 0)
 )
 ```
 
-1. Click **"Done"**
+5. Click **"Done"**
 
 **Note:** This ensures the flow only runs when:
 
 - PostStatus is empty (not yet processed)
-- PartNumber has been entered
+- Part has been selected from the lookup
 
 ### Step 3: Initialize Variables
 
-Add 2 **"Initialize variable"** actions:
+Add 3 **"Initialize variable"** actions:
 
 #### Variable 1: vPartNumber
 
 - **Name:** vPartNumber
 - **Type:** String
-- **Value:** `trim(coalesce(triggerBody()?['PartNumber'], ''))`
+- **Value:** `trim(coalesce(triggerBody()?['Part']?['Value'], ''))`
+
+#### Variable 1a: vPartId
+
+- **Name:** vPartId
+- **Type:** Integer
+- **Value:** `int(coalesce(triggerBody()?['Part']?['Id'], 0))`
 
 #### Variable 2: vCurrentDesc
 
@@ -115,11 +121,11 @@ Add **"Get items - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: Your site
-- List Name: Parts
+- Site Address: `@{environment('SharePointSiteUrl')}`
+- List Name: Parts Master
 - Filter Query: `PartNumber eq '@{replace(variables('vPartNumber'),'''','''''')}'`
 - Top Count: 1
-- **Select Query:** `PartNumber,Description,DefaultUOM,RequiresBatch,RequiresLocation`
+- **Select Query:** `PartNumber,PartDescription,DefaultUOM`
 
 **Settings (⚙️ icon):**
 
@@ -129,7 +135,7 @@ Add **"Get items - SharePoint"** action:
   - Interval: PT10S (10 seconds)
   - Maximum Interval: PT1H (1 hour)
 
-### Step 6: Check if Part Found
+### Step 7: Check if Part Found
 
 Add **"Condition"** action:
 
@@ -144,7 +150,7 @@ Add **"Condition"** action:
 @greater(length(body('Get_Part_from_Master')?['value']), 0)
 ```
 
-### Step 7: Update Transaction (In YES Branch)
+### Step 8: Update Transaction (In YES Branch)
 
 Add **"Update item - SharePoint"** action:
 
@@ -152,14 +158,14 @@ Add **"Update item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: Your site
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `triggerBody()?['ID']`
 - Fields to Update:
-  - Description: `first(body('Get_Part_from_Master')?['value'])?['Description']`
-  - UOM: `@{if(equals(length(coalesce(triggerBody()?['UOM'], '')), 0), first(body('Get_Part_from_Master')?['value'])?['UOM'], triggerBody()?['UOM'])}`
+  - Description: `first(body('Get_Part_from_Master')?['value'])?['PartDescription']`
+  - UOM: `@{if(equals(length(coalesce(triggerBody()?['UOM'], '')), 0), first(body('Get_Part_from_Master')?['value'])?['DefaultUOM'], triggerBody()?['UOM'])}`
 
-### Step 8: Optional - Log Part Not Found (In NO Branch of Step 6)
+### Step 9: Optional - Log Part Not Found (In NO Branch of Step 7)
 
 You can optionally add logging or notification:
 
@@ -209,7 +215,6 @@ Set default values when creating new transactions:
 
 Add to Update item when part is found:
 
-- Location: `coalesce(triggerBody()?['Location'], 'FLOOR')`
 - Batch: `coalesce(triggerBody()?['Batch'], formatDateTime(utcNow(), 'yyyyMMdd'))`
 
 ## Testing Checklist

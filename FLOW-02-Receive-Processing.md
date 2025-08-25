@@ -50,9 +50,17 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 )
 ```
 
-1. Click **"Done"**
+5. Click **"Done"**
 
-### Step 3: Add Transaction Scope
+### Step 3: Configure Trigger Settings
+
+1. Click the three dots on the trigger → **"Settings"**
+2. Under **"Concurrency Control"**:
+   - Toggle to **On**
+   - Set **"Degree of Parallelism"** to **3** (allows 3 parallel receives)
+3. Click **"Done"**
+
+### Step 4: Add Transaction Scope
 
 Add **"Scope"** action named **"Transaction - Receive Processing"**
 
@@ -60,15 +68,21 @@ Add **"Scope"** action named **"Transaction - Receive Processing"**
 
 All subsequent steps go inside this scope for atomic transaction handling.
 
-### Step 4: Initialize Variables
+### Step 5: Initialize Variables
 
-Inside the Transaction scope, add 8 **"Initialize variable"** actions:
+Inside the Transaction scope, add 7 **"Initialize variable"** actions:
 
-#### Variable 1: vPart
+#### Variable 1: vPartNumber
 
-- **Name:** vPart
+- **Name:** vPartNumber
 - **Type:** String
-- **Value:** `trim(coalesce(triggerBody()?['PartNumber'], ''))`
+- **Value:** `trim(coalesce(triggerBody()?['Part']?['Value'], ''))`
+
+#### Variable 1a: vPartId
+
+- **Name:** vPartId
+- **Type:** Integer
+- **Value:** `int(coalesce(triggerBody()?['Part']?['Id'], 0))`
 
 #### Variable 2: vBatch
 
@@ -88,31 +102,25 @@ Inside the Transaction scope, add 8 **"Initialize variable"** actions:
 - **Type:** String
 - **Value:** `trim(coalesce(triggerBody()?['UOM'], ''))`
 
-#### Variable 5: vLoc
-
-- **Name:** vLoc
-- **Type:** String
-- **Value:** `trim(coalesce(triggerBody()?['Location'], ''))`
-
-#### Variable 6: vId
+#### Variable 5: vId
 
 - **Name:** vId
 - **Type:** String
 - **Value:** `triggerBody()?['ID']`
 
-#### Variable 7: vFlowRunId
+#### Variable 6: vFlowRunId
 
 - **Name:** vFlowRunId
 - **Type:** String
 - **Value:** `workflow()?['run']?['name']`
 
-#### Variable 8: vTransactionSuccess
+#### Variable 7: vTransactionSuccess
 
 - **Name:** vTransactionSuccess
 - **Type:** Boolean
 - **Value:** `false`
 
-### Step 5: Add Throttle Delay
+### Step 6: Add Throttle Delay
 
 Add **"Delay"** action:
 
@@ -123,7 +131,7 @@ Add **"Delay"** action:
 
 This prevents SharePoint throttling when processing multiple transactions.
 
-### Step 6: Get Matching On-Hand Row with Pagination
+### Step 7: Get Matching On-Hand Row with Pagination
 
 Add **"Get items - SharePoint"** action:
 
@@ -138,24 +146,19 @@ Add **"Get items - SharePoint"** action:
 - Filter Query:
 
 ```powerautomate
-(PartNumber eq '@{replace(variables('vPart'),'''','''''')}') and (Batch eq '@{replace(variables('vBatch'),'''','''''')}') and (UOM eq '@{replace(variables('vUOM'),'''','''''')}') and (IsActive eq true)
-```
-
-**Note:** If using Location field, add to filter:
-
-```powerautomate
-(PartNumber eq '@{replace(variables('vPart'),'''','''''')}') and (Batch eq '@{replace(variables('vBatch'),'''','''''')}') and (UOM eq '@{replace(variables('vUOM'),'''','''''')}') and (Location eq '@{replace(variables('vLoc'),'''','''''')}') and (IsActive eq true)
+Part/Id eq @{variables('vPartId')} and Batch eq '@{replace(variables('vBatch'),'''','''''')}' and UOM eq '@{replace(variables('vUOM'),'''','''''')}' and IsActive eq true
 ```
 
 - Top Count: 1
-- **Select Query:** `ID,Title,OnHandQty,PartNumber,Batch,UOM,Location`
+- **Select Query:** `ID,Title,OnHandQty,Part,Batch,UOM`
+- **Expand Query:** `Part`
 - **Order By:** `Modified desc`
 - **Settings:**
   - Retry Policy: Fixed Interval
   - Count: 3
   - Interval: PT2S
 
-### Step 7: Check if Row Exists
+### Step 8: Check if Row Exists
 
 Add **"Condition"** action:
 
@@ -170,11 +173,11 @@ Add **"Condition"** action:
 @greater(length(body('Get_OnHand_for_Part_Batch')?['value']), 0)
 ```
 
-### Step 8: Configure YES Branch (Update Existing)
+### Step 9: Configure YES Branch (Update Existing)
 
 In the **Yes** branch:
 
-#### Step 8a: Capture ETag for Optimistic Locking
+#### Step 9a: Capture ETag for Optimistic Locking
 
 Add **"Compose"** action:
 
@@ -182,10 +185,10 @@ Add **"Compose"** action:
 
 **Inputs:**
 ```powerautomate
-@{first(body('Get_OnHand_for_Part_Batch')?['value'])?['@odata.etag']}
+first(body('Get_OnHand_for_Part_Batch')?['value'])?['@odata.etag']
 ```
 
-#### Step 8a2: Store Original Title
+#### Step 9a2: Store Original Title
 
 Add **"Initialize variable"** action:
 
@@ -193,7 +196,7 @@ Add **"Initialize variable"** action:
 **Type:** String
 **Value:** `@{first(body('Get_OnHand_for_Part_Batch')?['value'])?['Title']}`
 
-#### Step 8b: Update with New Quantity (Using ETag)
+#### Step 9b: Update with New Quantity (Using ETag)
 
 Add **"Send an HTTP request to SharePoint"** action:
 
@@ -214,7 +217,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 ```json
 {
   "__metadata": {
-    "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
+    "type": "SP.Data.On_x002d_HandMaterialListItem"
   },
   "Title": "@{variables('vOriginalTitle')}",
   "OnHandQty": @{round(add(float(coalesce(first(body('Get_OnHand_for_Part_Batch')?['value'])?['OnHandQty'], 0)), float(variables('vQty'))), 2)},
@@ -227,7 +230,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 
 **Note:** If this action fails with HTTP 412 (Precondition Failed), it means another flow has modified the record. Configure run after to handle this case.
 
-#### Step 8c: Handle Concurrency Conflict (Configure Run After)
+#### Step 9c: Handle Concurrency Conflict (Configure Run After)
 
 Add **"Condition"** action:
 
@@ -252,7 +255,7 @@ Add **"Condition"** action:
 **If No (Other Error):**
 - Add **"Terminate"** action with Status: Failed and Message: `@{string(outputs('Update_Existing_OnHand_with_ETag'))}`
 
-### Step 9: Configure NO Branch (Create New)
+### Step 10: Configure NO Branch (Create New)
 
 In the **No** branch, add **"Create item - SharePoint"** action:
 
@@ -265,11 +268,10 @@ In the **No** branch, add **"Create item - SharePoint"** action:
 - Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Fields:
-  - Title: `@{concat(variables('vPart'), '-', variables('vBatch'), '-', variables('vUOM'), if(greater(length(variables('vLoc')), 0), concat('-', variables('vLoc')), ''))}`
-  - PartNumber: `@{variables('vPart')}`
+  - Title: `@{concat(variables('vPartNumber'), '-', variables('vBatch'), '-', variables('vUOM'))}`
+  - Part: `@{variables('vPartId')}`
   - Batch: `@{variables('vBatch')}`
   - UOM: `@{variables('vUOM')}`
-  - Location: `@{if(greater(length(variables('vLoc')), 0), variables('vLoc'), null)}`
   - OnHandQty: `@{round(float(variables('vQty')), 2)}`
   - LastMovementAt: `utcNow()`
   - LastMovementType: `Receive`
@@ -280,14 +282,14 @@ In the **No** branch, add **"Create item - SharePoint"** action:
   - Count: 3
   - Interval: PT10S
 
-### Step 10: Set Success Flag
+### Step 11: Set Success Flag
 
 Add **"Set variable"** action (outside the condition):
 
 - Name: vTransactionSuccess
 - Value: `true`
 
-### Step 11: Mark Transaction as Posted
+### Step 12: Mark Transaction as Posted
 
 Add **"Update item - SharePoint"** action:
 
@@ -307,7 +309,7 @@ Add **"Update item - SharePoint"** action:
   - Count: 3
   - Interval: PT5S
 
-### Step 12: Add Error Handling
+### Step 13: Add Error Handling
 
 Add **"Scope"** action named **"Catch - Handle Errors"**
 
@@ -317,7 +319,7 @@ Add **"Scope"** action named **"Catch - Handle Errors"**
 
 Inside Catch scope:
 
-#### Step 12a: Check if Partial Success
+#### Step 13a: Check if Partial Success
 
 Add **"Condition"** action:
 
@@ -365,7 +367,7 @@ Add **"Send an email (V2)"** action:
 - Subject: `ERROR: Receive Processing Failed`
 - Body: Include transaction details and error message
 
-### Step 13: Add Performance Monitoring (Optional)
+### Step 14: Add Performance Monitoring (Optional)
 
 Add **"Compose"** action at the end:
 
@@ -378,7 +380,7 @@ Add **"Compose"** action at the end:
   "FlowRunId": "@{variables('vFlowRunId')}",
   "TransactionId": "@{variables('vId')}",
   "ProcessingTimeSeconds": "@{div(sub(ticks(utcNow()), ticks(workflow()?['run']?['startTime'])), 10000000)}",
-  "PartNumber": "@{variables('vPart')}",
+  "PartNumber": "@{variables('vPartNumber')}",
   "Quantity": @{variables('vQty')},
   "Success": @{variables('vTransactionSuccess')}
 }
@@ -406,12 +408,11 @@ Add **"Compose"** action at the end:
 - [ ] Verify single On-Hand row with summed quantity
 - [ ] Check LastMovementRefId points to latest transaction
 
-### Test Case 4: Different Locations
+### Test Case 4: Concurrent Receives
 
-- [ ] If using Location field:
-  - Create RECEIVE for Part+Batch at Location A
-  - Create RECEIVE for same Part+Batch at Location B
-  - Verify separate On-Hand rows per location
+- [ ] Create 2 RECEIVE transactions simultaneously
+- [ ] Verify both process without errors
+- [ ] Check ETag locking prevents conflicts
 
 ## Troubleshooting
 
@@ -433,7 +434,7 @@ Add **"Compose"** action at the end:
    - Test with decimal quantities
 
 4. **Performance issues**
-   - Ensure columns are indexed (PartNumber, Batch, UOM, Location)
+   - Ensure columns are indexed (Part, Batch, UOM)
    - Use Top Count: 1 on Get items
    - Consider adding delays if necessary
 
