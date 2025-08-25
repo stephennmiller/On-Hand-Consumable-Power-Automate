@@ -61,7 +61,7 @@ The flows use these specific column names:
 - On-Hand Material: `OnHandQty` (not TotalQuantity)
 - Additional columns: `UOM`, `Location`, `PONumber` in Tech Transactions
 - On-Hand columns: `IsActive`, `LastMovementAt`, `LastMovementType`, `LastMovementRefId`
-- Flow Error Log: `Title` (flow name), `ItemID` (source transaction ID), `ErrorMessage`, `Timestamp`
+- Flow Error Log: `Title` (flow name), `ErrorMessage`, `FlowRunURL` (run URL, optional), `ItemID` (source transaction ID), `Timestamp`
 
 ### Required Environment Variables (Dataverse)
 
@@ -76,7 +76,7 @@ Four lists must be created with exact column names:
 1. **Tech Transactions** - Incoming transaction records
 2. **On-Hand Material** - Current inventory state
 3. **Flow Error Log** - Error tracking and debugging
-4. **PO List** - Purchase order validation (for ISSUE transactions)
+4. **PO List** - Purchase order validation used by FLOW-01 (Intake-Validation, IsOpen check); optionally referenced by ISSUE processing
 
 PO List minimum columns:
 - `PONumber` (Single line of text, Enforce unique = Yes)
@@ -103,6 +103,7 @@ PO List minimum columns:
 **Tech Transactions List**:
 - Index: `PartNumber`, `Batch`, `PONumber`, `PostStatus`, `UOM`, `Location`
 - These support filter queries in Get items operations
+- Note: Each additional index can slow writes; prioritize columns used in $filter and lookups
 
 **On-Hand Material List**:
 - Index: `PartNumber`, `Batch`, `UOM`, `Location`
@@ -156,10 +157,14 @@ Each flow includes specific test cases:
 5. **Metadata Type Names**: SharePoint list internal names - e.g., `SP.Data.On_x002d_Hand_x0020_MaterialListItem`
 6. **Concurrency Issues**: Set trigger concurrency to 1 for ISSUE flows to prevent race conditions
 7. **HTTP Status Codes**:
-   - Lock success = 204, check with `equals(outputs('Lock_Action')?['statusCode'], 204)`
-   - 412 Precondition Failed = ETag mismatch, implement retry:
-     - Expression: `@equals(outputs('HTTP_Request')?['statusCode'], 412)`
-     - In Do Until loop: retry up to 3 times with exponential backoff
+   - Lock success = 204  
+     `equals(outputs('Lock_Action')?['statusCode'], 204)`
+   - 412 Precondition Failed → ETag mismatch: re-read the item to refresh ETag, then retry (max 3 attempts)  
+     `@equals(outputs('HTTP_Request')?['statusCode'], 412)`
+   - 429 Too Many Requests → throttling: retry up to 3 attempts with bounded exponential backoff + jitter  
+     `@equals(outputs('HTTP_Request')?['statusCode'], 429)`
+   - 5xx Server Errors → transient faults: retry up to 3 attempts with bounded exponential backoff  
+     `@and(greaterOrEquals(outputs('HTTP_Request')?['statusCode'], 500), less(outputs('HTTP_Request')?['statusCode'], 600))`
 
 ## Important Files for Reference
 
