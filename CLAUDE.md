@@ -63,6 +63,15 @@ The flows use these specific column names:
 - On-Hand columns: `IsActive`, `LastMovementAt`, `LastMovementType`, `LastMovementRefId`
 - Flow Error Log: `Title` (flow name), `ErrorMessage`, `FlowRunURL` (run URL, optional), `ItemID` (source transaction ID), `Timestamp`
 
+Recommended types/formatting:
+- `Qty`, `OnHandQty`: Number with 2 decimals (store as number; use `round()` only when writing).
+- `PONumber`: Single line of text (Enforce unique = Yes).
+- `UOM`, `Location`: Single line of text (or Choice if your flows expect strict options—document your choice consistently across files).
+- `IsActive`: Yes/No.
+- `LastMovementAt`: Date and Time (UTC).
+- `LastMovementType`, `LastMovementRefId`: Single line of text.
+- Flow Error Log → `ItemID`: Number; `FlowRunURL`: Hyperlink or Picture; others: Single line of text.
+
 ### Required Environment Variables (Dataverse)
 
 - `environment('SharePointSiteUrl')` - Your SharePoint site URL
@@ -82,6 +91,8 @@ PO List minimum columns:
 - `PONumber` (Single line of text, Enforce unique = Yes)
 - `IsOpen` (Yes/No)
 - Optional metadata: `Vendor` (Text), `PODate` (Date), `Notes` (Multiline)
+Filter example (FLOW-01 validation):
+`$filter=PONumber eq '@{variables('vPONumberEscaped')}' and IsOpen eq true`
 
 ### Expression Syntax Notes
 
@@ -91,7 +102,7 @@ PO List minimum columns:
   - Example condition (object): `@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')`
   - Example condition (string): `@equals(triggerOutputs()?['body/PostStatus'], 'Validated')`
   - Tip: Use Peek code on the trigger/Get item to confirm whether the Choice value is a string or an object (with `Value`) before choosing an expression.
-  - Note: `triggerBody()` and `triggerOutputs()?['body']` are equivalent—use one form consistently in a given flow.
+  - Note: `triggerBody()` and `triggerOutputs()?['body']` are equivalent—use one form consistently in a given flow to improve searchability and reduce copy-paste errors.
 - Always escape single quotes in filters: `replace(variables('vPart'),'''','''''')`
 - Float conversion required for calculations: `float(variables('vQty'))`
 - Round to 2 decimals for quantities: `round(float(variables('vQty')), 2)`
@@ -108,7 +119,9 @@ PO List minimum columns:
 
 **On-Hand Material List**:
 - Index: `PartNumber`, `Batch`, `UOM`, `Location`
-- Prefer a dedicated text column `CompositeKey` (indexed) populated by the flow, e.g., `concat(PartNumber, '-', Batch)`. This works reliably in $filter and supports lookups
+- Prefer a dedicated text column `CompositeKey` (indexed) populated by the flow, e.g.:
+- `concat(PartNumber, '|', coalesce(Batch,''), '|', UOM, '|', Location)`
+- Use a delimiter like `|` that won't appear in data. This key works reliably in $filter and supports lookups.
 
 **Flow Error Log**:
 - Index: `ItemID` (recommended), `Title` (optional)
@@ -167,19 +180,24 @@ Each flow includes specific test cases:
 
 6. **Concurrency Issues**: Set trigger concurrency to 1 for ISSUE flows to prevent race conditions
 
-7. **Deterministic Ordering**: When using pagination, set `$orderby=ID asc` (or another stable key) to ensure consistent page boundaries across retries.
+7. **Deterministic Pagination**:
+   - Use `$orderby=ID asc` (or another stable key).
+   - Set `$top=<pageSize>` (e.g., 500) and enable pagination in action settings with the same threshold.
+   - On retries, resume using the connector-managed `$skiptoken` (implicit when Pagination is On) to avoid duplicate or missing items.
 
 8. **HTTP Status Codes**:
    - Lock success = 204  
-     `equals(outputs('Lock_Action')?['statusCode'], 204)`
+     `equals(outputs('Lock_Action')?['statusCode'], 204)` (replace `Lock_Action` with your actual action name)
    - 412 Precondition Failed → ETag mismatch: re-read the item to refresh ETag, then retry (max 3 attempts)  
-     `@equals(outputs('HTTP_Request')?['statusCode'], 412)`
+     `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 412)`
    - 429 Too Many Requests → throttling: retry up to 3 attempts with bounded exponential backoff + jitter  
-     `@equals(outputs('HTTP_Request')?['statusCode'], 429)`
+     `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 429)`
    - 5xx Server Errors → transient faults: retry up to 3 attempts with bounded exponential backoff  
-     `@and(greaterOrEquals(outputs('HTTP_Request')?['statusCode'], 500), less(outputs('HTTP_Request')?['statusCode'], 600))`
+     `@and(greaterOrEquals(outputs('Your_Http_Action_Name')?['statusCode'], 500), less(outputs('Your_Http_Action_Name')?['statusCode'], 600))`
    - Delay duration per attempt (vAttempt = 1..3), seconds with small jitter:
      `PT@{add(int(pow(2, sub(variables('vAttempt'), 1))), rand(0,2))}S`
+   - Do Until termination (complete when success OR attempts exhausted):
+     `@or(equals(outputs('Lock_Action')?['statusCode'], 204), greaterOrEquals(variables('vAttempt'), 3))`
 
 ## Important Files for Reference
 
