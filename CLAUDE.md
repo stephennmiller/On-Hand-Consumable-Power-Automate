@@ -241,6 +241,7 @@ Each flow includes specific test cases:
 ## Performance Targets
 
 ### Transaction Processing Rates
+
 - **Basic Implementation**: 500-800 transactions/hour
   - Single flow instances, no parallelism
   - Standard SharePoint connector actions
@@ -254,6 +255,7 @@ Each flow includes specific test cases:
 - **Error Rate Target**: <0.1% in production
 
 ### Performance Baselines
+
 - **SharePoint Connector Limits**:
   - 600 API calls per minute per flow
   - 2000 API calls per minute per connection
@@ -268,6 +270,7 @@ Each flow includes specific test cases:
 ## Retry Policy Guidelines
 
 ### When to Use Fixed Interval
+
 Use **Fixed Interval** retry for:
 - Simple read operations (Get items, Get item)
 - Non-critical updates that can tolerate delays
@@ -275,6 +278,7 @@ Use **Fixed Interval** retry for:
 - Settings: Count = 3, Interval = PT2S to PT5S
 
 ### When to Use Exponential Backoff
+
 Use **Exponential Backoff** retry for:
 - Critical inventory updates
 - Operations that might face throttling
@@ -283,12 +287,14 @@ Use **Exponential Backoff** retry for:
 - Settings: Count = 3-5, Initial Interval = PT10S, Max Interval = PT1M
 
 ### When to Disable Retry (None)
+
 Set Retry Policy to **None** for:
 - Operations inside Do Until loops (to prevent double retry)
 - ETag-based update attempts (handle 412 manually)
 - Operations where you implement custom retry logic
 
 ### HTTP Status Code Handling
+
 - **2xx**: Success, no retry needed
 - **400-404**: Client errors, do not retry (except 408, 429)
 - **408**: Request timeout, retry with exponential backoff

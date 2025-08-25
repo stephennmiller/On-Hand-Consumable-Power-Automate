@@ -61,7 +61,7 @@ Skip this flow if:
 )
 ```
 
-5. Click **"Done"**
+1. Click **"Done"**
 
 **Note:** This ensures the flow only runs when:
 

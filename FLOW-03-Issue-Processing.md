@@ -56,10 +56,10 @@ Processes validated ISSUE and RETURNED transactions to remove inventory from the
 )
 ```
 
-5. Under **"Concurrency Control"**:
+1. Under **"Concurrency Control"**:
    - Toggle to **On**
    - Set **"Degree of Parallelism"** to **1** (critical for preventing race conditions)
-6. Click **"Done"**
+2. Click **"Done"**
 
 ### Step 3: Add Atomic Transaction Scope
 
@@ -102,7 +102,6 @@ Inside the Atomic Transaction scope, add 11 **"Initialize variable"** actions:
 - **Name:** vUOM
 - **Type:** String
 - **Value:** `trim(coalesce(triggerBody()?['UOM'], ''))`
-
 
 #### Variable 6: vId
 
