@@ -38,6 +38,7 @@ Located in `reference-docs/`:
 5. **Error** → Failed with logged reason
 
 ### Transaction Types
+
 - **RECEIVE** → Adds inventory (incoming materials)
 - **ISSUE** → Removes inventory (materials consumed)
 - **RETURNED** → Removes inventory (defective/damaged items returned to vendor)

@@ -32,7 +32,6 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | MaxStockLevel | Number | Optional |
 | IsActive | Yes/No | Required, Default: Yes |
 
-
 #### Tech Transactions List
 
 | Column Name | Type | Settings |
@@ -139,7 +138,7 @@ After building Phase 1, test with this sequence:
 
 ### Basic Functionality Tests
 
-**Prerequisites**: 
+**Prerequisites**:
 - Create a part in Parts Master (PartNumber: "ABC123", Description: "Test Part", DefaultUOM: "EA")
 - Create a PO in PO List (PONumber: "PO001", IsOpen: Yes)
 
