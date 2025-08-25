@@ -71,8 +71,10 @@ Recommended types/formatting:
 - `LastMovementAt`: Date and Time (UTC). Use `utcNow()` when writing.
 - `LastMovementType`, `LastMovementRefId`: Single line of text.
 - Flow Error Log → `ItemID`: Number; `FlowRunURL`: Hyperlink or Picture; others: Single line of text.
-  - Writing `FlowRunURL` (SharePoint connector): supply an object:
+  - Writing `FlowRunURL` (SharePoint connector): supply an object
     `{ "Url": "@{variables('vRunUrl')}", "Description": "Run details" }`
+  - Writing via SharePoint REST: use SP.FieldUrlValue shape (nometadata payload omits `__metadata`):
+    `{ "FlowRunURL": { "Url": "@{variables('vRunUrl')}", "Description": "Run details" } }`
 
 ### Required Environment Variables (Dataverse)
 
@@ -80,6 +82,9 @@ Recommended types/formatting:
 - `environment('AdminEmail')` - Email address for critical alerts (can be a distribution list or shared mailbox)
 
 **Note**: Use `environment()` for Dataverse environment variables in cloud flows. Do not use `parameters()` for environment variables; `parameters()` refers to flow-level parameters. Create the variables inside a Solution and set a per-environment "Current value" before running flows.
+- Example usage in expressions:
+  - Site: `@{environment('SharePointSiteUrl')}`
+  - Admin: `@{environment('AdminEmail')}`
 
 ### Required SharePoint Lists
 
@@ -108,7 +113,9 @@ Action setting: set "Top Count" = `1` (since `PONumber` is unique)
   - Note: `triggerBody()` and `triggerOutputs()?['body']` are equivalent—use one form consistently in a given flow to improve searchability and reduce copy-paste errors.
 - When writing Choice values:
   - Single-select: pass a string (e.g., `'Validated'`).
-  - Multi-select: pass an array of strings (e.g., `['Open','Urgent']`).
+  - Multi-select (SharePoint connector actions): pass an array of strings (e.g., `['Open','Urgent']`).
+  - Multi-select (SharePoint REST via "Send an HTTP request to SharePoint"): 
+    send `{ "YourChoiceFieldInternalName": { "results": ["Open","Urgent"] } }`.
 - Always escape single quotes in filters: `replace(variables('vPart'),'''','''''')`
 - Float conversion required for calculations: `float(variables('vQty'))`
 - Round to 2 decimals for quantities: `round(float(variables('vQty')), 2)`
@@ -127,17 +134,12 @@ Action setting: set "Top Count" = `1` (since `PONumber` is unique)
 - Index: `PartNumber`, `Batch`, `UOM`, `Location`
 - Prefer a dedicated text column `CompositeKey` (indexed) populated by the flow.
 - Prefer normalized key (trim + upper-case):
-- `concat(
-  toUpper(trim(variables('vPartNumber'))), '|',
-  coalesce(toUpper(trim(variables('vBatch'))),''), '|',
-  toUpper(trim(variables('vUOM'))), '|',
-  toUpper(trim(variables('vLocation')))
-  )`
+- `concat(toUpper(trim(variables('vPartNumber'))),'|',coalesce(toUpper(trim(variables('vBatch'))),''),'|',toUpper(trim(variables('vUOM'))),'|',toUpper(trim(variables('vLocation'))))`
 - Use a delimiter like `|` that won't appear in data. This key works reliably in $filter and supports lookups.
 
 **Flow Error Log**:
-- Index: `ItemID` (recommended), `Title` (optional)
-- Rationale: Speeds up incident triage and cross-referencing specific source transactions.
+- Index: `ItemID` (recommended), `Timestamp` or `Created` (recommended), `Title` (optional)
+- Rationale: Speeds up incident triage, time-window filtering, and cross-referencing source transactions.
 
 **PO List**:
 - Index: `PONumber` (required for FLOW-01 intake-validation lookups)
@@ -159,7 +161,7 @@ When updating documentation:
   - Required headers (SharePoint REST):
     - `Accept: application/json;odata=nometadata`
     - `Content-Type: application/json;odata=nometadata`
-    - `If-Match: "<etag>"`
+    - `If-Match: "<etag>"` (pass exactly as returned by the API; avoid adding/removing quotes)
   - Use either:
     - POST + header `X-HTTP-Method: MERGE`, or
     - PATCH (if your HTTP action/tenant supports it)
@@ -179,6 +181,8 @@ Each flow includes specific test cases:
 - Edge cases (zero quantity, exact depletion)
 - Error conditions (insufficient stock, missing data)
 - Concurrency scenarios (parallel transactions)
+- Throttling scenarios (HTTP 429 with Retry-After handling)
+- Transient server faults (HTTP 5xx with bounded exponential backoff)
 
 ## Performance Targets
 
@@ -209,8 +213,9 @@ Each flow includes specific test cases:
    - On retries, resume using the connector-managed `$skiptoken` (implicit when Pagination is On) to avoid duplicate or missing items.
 
 8. **HTTP Status Codes**:
-   - Lock success = 204  
-     `equals(outputs('Lock_Action')?['statusCode'], 204)` (replace `Lock_Action` with your actual action name)
+   - Lock success = 204 (and in some cases 200 for PATCH)
+     `@or(equals(outputs('Lock_Action')?['statusCode'], 204), equals(outputs('Lock_Action')?['statusCode'], 200))`
+     (replace `Lock_Action` with your actual action name)
    - 412 Precondition Failed → ETag mismatch: re-read the item to refresh ETag, then retry (max 3 attempts)  
      `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 412)`
    - 429 Too Many Requests → throttling: retry up to 3 attempts with bounded exponential backoff + jitter  
