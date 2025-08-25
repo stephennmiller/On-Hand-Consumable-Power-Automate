@@ -61,7 +61,7 @@ The flows use these specific column names:
 - On-Hand Material: `OnHandQty` (not TotalQuantity)
 - Additional columns: `UOM`, `Location`, `PONumber` in Tech Transactions
 - On-Hand columns: `IsActive`, `LastMovementAt`, `LastMovementType`, `LastMovementRefId`
-- Flow Error Log: `Title` (flow name), `ErrorMessage`, `FlowRunURL` (run URL, optional), `ItemID` (source transaction ID), `Timestamp`
+- Flow Error Log: `Title` (flow name), `ErrorMessage` (multi-line for full stack traces), `FlowRunURL` (run URL, optional), `ItemID` (source transaction ID), `Timestamp`
 
 Recommended types/formatting:
 - `Qty`, `OnHandQty`: Number with 2 decimals (store as number; use `round()` only when writing).
@@ -70,8 +70,9 @@ Recommended types/formatting:
 - `IsActive`: Yes/No.
 - `LastMovementAt`: Date and Time (UTC). Use `utcNow()` when writing.
   - Note: SharePoint list views may display in the site's local timezone; configure the column as "Include time" and be mindful of regional settings when validating timestamps.
+  - Example (display in Eastern time): `@{convertTimeZone(utcNow(), 'UTC', 'Eastern Standard Time')}`
 - `LastMovementType`, `LastMovementRefId`: Single line of text.
-- Flow Error Log → `ItemID`: Number; `Timestamp`: Date and Time (UTC); `FlowRunURL`: Hyperlink (recommended); `Title`/`ErrorMessage`: Single line of text.
+- Flow Error Log → `ItemID`: Number; `Timestamp`: Date and Time (UTC); `FlowRunURL`: Hyperlink (recommended); `Title`: Single line of text (flow name); `ErrorMessage`: Multiple lines of text (plain text, no HTML formatting - preserves full error payloads and stack traces).
   - Writing `FlowRunURL` (SharePoint connector): supply an object
     `{ "Url": "@{variables('vRunUrl')}", "Description": "Run details" }`
   - Writing via SharePoint REST: use SP.FieldUrlValue shape (nometadata payload omits `__metadata`):
@@ -101,6 +102,7 @@ PO List minimum columns:
 - `IsOpen` (Yes/No)
 - Optional metadata: `Vendor` (Text), `PODate` (Date), `Notes` (Multiline)
 Filter example (FLOW-01 validation) (note: Yes/No is a boolean; use `true`/`false` without quotes):
+- Pre-step: Initialize variable `vPONumberEscaped` = `@{replace(variables('vPONumber'), '''', '''''')}`
 - Get items (Filter Query field):
   `PONumber eq '@{variables('vPONumberEscaped')}' and IsOpen eq true`
 - REST (Uri querystring):
@@ -175,6 +177,9 @@ When updating documentation:
     - `Accept: application/json;odata=nometadata`
     - `Content-Type: application/json;odata=nometadata`
     - `If-Match: "<etag>"` (pass exactly as returned by the API; avoid adding/removing quotes)
+    - Example (variable): Initialize `vETag` = the item's `@odata.etag`, then set header:
+      - If-Match: `@{variables('vETag')}`
+      - Anti-pattern to avoid: `If-Match: "@{variables('vETag')}"` (adds extra quotes and causes 400/412)
   - Use either:
     - POST + header `X-HTTP-Method: MERGE`, or
     - PATCH (if your HTTP action/tenant supports it)
@@ -183,6 +188,8 @@ When updating documentation:
     - Method: POST
     - Uri (resilient): `/_api/web/lists(guid'{YourListGuid}')/items(@{int(variables('vOnHandId'))})`
       - Alternative (title-based): `/_api/web/lists/getbytitle('On-Hand Material')/items(@{int(variables('vOnHandId'))})`
+      - If your list title contains a single quote, escape it as two single quotes inside the literal:
+        `getbytitle('ACME''s Materials')`
       - Tip (find List GUID): Site contents → open the list → Settings; the URL contains `List=%7B<GUID>%7D`. Copy the GUID portion including braces.
     - Headers: as above (plus `X-HTTP-Method: MERGE` for POST)
   - Alternative (generic HTTP connector with Entra ID):
@@ -244,6 +251,9 @@ Each flow includes specific test cases:
      `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 412)`
    - 429 Too Many Requests → throttling: retry up to 3 attempts with bounded exponential backoff + jitter  
      `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 429)`
+   - 409 Conflict → unique/index constraint violation or conflicting state:
+     - Treat as non-retryable validation/business error (log and exit), unless your scenario intentionally retries idempotent creates.
+     `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 409)`
    - 408 Request Timeout → transient: retry with bounded exponential backoff  
      `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 408)`
    - 5xx Server Errors → transient faults: retry up to 3 attempts with bounded exponential backoff  
@@ -251,6 +261,7 @@ Each flow includes specific test cases:
    - vAttempt management:
      - Initialize before the loop: Initialize variable `vAttempt` (Integer) = `1`
      - At end of each iteration: Set variable `vAttempt` → `@{add(variables('vAttempt'), 1)}`
+   - Do Until (Change limits): set `Count` = `3` and a conservative `Timeout` (e.g., `PT1M`) to avoid runaway loops if variables are mis-set.
    - Delay duration per attempt (vAttempt = 1..3). Prefer `Retry-After` (secs). If only `x-ms-retry-after-ms` is present, convert ms→s. Else use exponential + jitter:
      `PT@{int(coalesce(
         outputs('Your_Http_Action_Name')?['headers']?['Retry-After'],
