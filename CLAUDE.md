@@ -69,6 +69,7 @@ Recommended types/formatting:
 - `UOM`, `Location`: Single line of text (or Choice if your flows expect strict options—document your choice consistently across files).
 - `IsActive`: Yes/No.
 - `LastMovementAt`: Date and Time (UTC). Use `utcNow()` when writing.
+  - Note: SharePoint list views may display in the site's local timezone; configure the column as "Include time" and be mindful of regional settings when validating timestamps.
 - `LastMovementType`, `LastMovementRefId`: Single line of text.
 - Flow Error Log → `ItemID`: Number; `Timestamp`: Date and Time (UTC); `FlowRunURL`: Hyperlink (recommended); `Title`/`ErrorMessage`: Single line of text.
   - Writing `FlowRunURL` (SharePoint connector): supply an object
@@ -116,10 +117,11 @@ Action setting (Get items): set "Top Count" = `1` (since `PONumber` is unique)
   - Tip: Use Peek code on the trigger/Get item to confirm whether the Choice value is a string or an object (with `Value`) before choosing an expression.
   - Note: `triggerBody()` and `triggerOutputs()?['body']` are equivalent—use one form consistently in a given flow to improve searchability and reduce copy-paste errors.
 - When writing Choice values:
-  - Single-select: pass a string (e.g., `'Validated'`).
+  - Single-select (SharePoint connector): pass a string (e.g., `'Validated'`).
+  - Single-select (SharePoint REST, nometadata): send `{ "YourChoiceFieldInternalName": "Validated" }`.
   - Multi-select (SharePoint connector actions): pass an array of strings (e.g., `['Open','Urgent']`).
   - Multi-select (SharePoint REST via "Send an HTTP request to SharePoint"): 
-    send `{ "YourChoiceFieldInternalName": { "results": ["Open","Urgent"] } }`.
+    `{ "YourChoiceFieldInternalName": { "results": ["Open","Urgent"] } }`.
 - Always escape single quotes in filters: `replace(variables('vPartNumber'),'''','''''')`
 - Float conversion required for calculations: `float(variables('vQty'))`
 - Round to 2 decimals for quantities: `round(float(variables('vQty')), 2)`
@@ -144,7 +146,9 @@ Action setting (Get items): set "Top Count" = `1` (since `PONumber` is unique)
   toUpper(trim(coalesce(variables('vUOM'), ''))),'|',
   toUpper(trim(coalesce(variables('vLocation'), '')))
   )`
-- Use a delimiter like `|` that won't appear in data. This key works reliably in $filter and supports lookups.
+- Use a delimiter like `|` that won't appear in data. If a component may contain `|`, sanitize:
+  `replace(toUpper(trim(coalesce(variables('vPartNumber'), ''))), '|', '¦')`
+  (repeat for other components). This keeps CompositeKey stable in $filter and lookups.
 
 **Flow Error Log**:
 - Index: `ItemID` (recommended), `Timestamp` or `Created` (recommended), `Title` (optional)
@@ -184,8 +188,8 @@ When updating documentation:
   - Alternative (generic HTTP connector with Entra ID):
     - Add `Authorization: Bearer <token>` and any tenant-required headers (e.g., request digest in classic contexts).
     - This path is more complex and generally not recommended when the SharePoint action is available.
-  - On 412 (Precondition Failed), re-read the item to get latest ETag, reapply changes, retry with bounded exponential backoff (e.g., 1s, 2s, 4s; max 3 attempts)
-- **Rollback Mechanism**: Step 16 in FLOW-03 implements compensating transactions
+  - On 412 (Precondition Failed), re-read the item to get latest ETag, reapply changes, retry with bounded exponential backoff (e.g., 1s, 2s, 4s; max 3 attempts). See "HTTP Status Codes" section for exact expressions.
+- **Rollback Mechanism**: FLOW-03 implements compensating transactions (see "Rollback Mechanism" section in that doc)
 - **Batch Processing**: FLOW-05 uses SharePoint batch APIs for significant performance improvement (results vary by tenant and list size)
 - **Circuit Breaker**: Advanced flows implement circuit breaker pattern to prevent cascade failures
 
@@ -235,12 +239,18 @@ Each flow includes specific test cases:
    - Lock success: any 2xx
      `@and(greaterOrEquals(outputs('Lock_Action')?['statusCode'], 200), less(outputs('Lock_Action')?['statusCode'], 300))`
      (replace `Lock_Action` with your actual action name)
+   - Retry Policy: set the MERGE/Update HTTP action Retry Policy to `None` (Action → Settings) when using this Do Until pattern to prevent double retries.
    - 412 Precondition Failed → ETag mismatch: re-read the item to refresh ETag, then retry (max 3 attempts)  
      `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 412)`
    - 429 Too Many Requests → throttling: retry up to 3 attempts with bounded exponential backoff + jitter  
      `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 429)`
+   - 408 Request Timeout → transient: retry with bounded exponential backoff  
+     `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 408)`
    - 5xx Server Errors → transient faults: retry up to 3 attempts with bounded exponential backoff  
      `@and(greaterOrEquals(outputs('Your_Http_Action_Name')?['statusCode'], 500), less(outputs('Your_Http_Action_Name')?['statusCode'], 600))`
+   - vAttempt management:
+     - Initialize before the loop: Initialize variable `vAttempt` (Integer) = `1`
+     - At end of each iteration: Set variable `vAttempt` → `@{add(variables('vAttempt'), 1)}`
    - Delay duration per attempt (vAttempt = 1..3). Prefer `Retry-After` (secs). If only `x-ms-retry-after-ms` is present, convert ms→s. Else use exponential + jitter:
      `PT@{int(coalesce(
         outputs('Your_Http_Action_Name')?['headers']?['Retry-After'],
