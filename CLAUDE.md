@@ -70,7 +70,7 @@ Recommended types/formatting:
 - `IsActive`: Yes/No.
 - `LastMovementAt`: Date and Time (UTC). Use `utcNow()` when writing.
 - `LastMovementType`, `LastMovementRefId`: Single line of text.
-- Flow Error Log → `ItemID`: Number; `Timestamp`: Date and Time (UTC); `FlowRunURL`: Hyperlink or Picture; `Title`/`ErrorMessage`: Single line of text.
+- Flow Error Log → `ItemID`: Number; `Timestamp`: Date and Time (UTC); `FlowRunURL`: Hyperlink (recommended); `Title`/`ErrorMessage`: Single line of text.
   - Writing `FlowRunURL` (SharePoint connector): supply an object
     `{ "Url": "@{variables('vRunUrl')}", "Description": "Run details" }`
   - Writing via SharePoint REST: use SP.FieldUrlValue shape (nometadata payload omits `__metadata`):
@@ -99,7 +99,7 @@ PO List minimum columns:
 - `PONumber` (Single line of text, Enforce unique = Yes)
 - `IsOpen` (Yes/No)
 - Optional metadata: `Vendor` (Text), `PODate` (Date), `Notes` (Multiline)
-Filter example (FLOW-01 validation):
+Filter example (FLOW-01 validation) (note: Yes/No is a boolean; use `true`/`false` without quotes):
 - Get items (Filter Query field):
   `PONumber eq '@{variables('vPONumberEscaped')}' and IsOpen eq true`
 - REST (Uri querystring):
@@ -120,7 +120,7 @@ Action setting (Get items): set "Top Count" = `1` (since `PONumber` is unique)
   - Multi-select (SharePoint connector actions): pass an array of strings (e.g., `['Open','Urgent']`).
   - Multi-select (SharePoint REST via "Send an HTTP request to SharePoint"): 
     send `{ "YourChoiceFieldInternalName": { "results": ["Open","Urgent"] } }`.
-- Always escape single quotes in filters: `replace(variables('vPart'),'''','''''')`
+- Always escape single quotes in filters: `replace(variables('vPartNumber'),'''','''''')`
 - Float conversion required for calculations: `float(variables('vQty'))`
 - Round to 2 decimals for quantities: `round(float(variables('vQty')), 2)`
 - Avoid formatNumber before math operations - format only for display
@@ -132,7 +132,7 @@ Action setting (Get items): set "Top Count" = `1` (since `PONumber` is unique)
 **Tech Transactions List**:
 - Index: `PartNumber`, `Batch`, `PONumber`, `PostStatus`, `UOM`, `Location`
 - These support filter queries in Get items operations
-- Note: Each additional index can slow writes; prioritize columns used in $filter and lookups
+- Note: Each additional index can slow writes; prioritize columns used in $filter and lookups, then revisit indexes after observing real query patterns.
 
 **On-Hand Material List**:
 - Index: `PartNumber`, `Batch`, `UOM`, `Location`
@@ -179,6 +179,7 @@ When updating documentation:
     - Method: POST
     - Uri (resilient): `/_api/web/lists(guid'{YourListGuid}')/items(@{int(variables('vOnHandId'))})`
       - Alternative (title-based): `/_api/web/lists/getbytitle('On-Hand Material')/items(@{int(variables('vOnHandId'))})`
+      - Tip (find List GUID): Site contents → open the list → Settings; the URL contains `List=%7B<GUID>%7D`. Copy the GUID portion including braces.
     - Headers: as above (plus `X-HTTP-Method: MERGE` for POST)
   - Alternative (generic HTTP connector with Entra ID):
     - Add `Authorization: Bearer <token>` and any tenant-required headers (e.g., request digest in classic contexts).
@@ -211,7 +212,10 @@ Each flow includes specific test cases:
 
 1. **Trigger Conditions**: Exact syntax and Choice column value access
 
-2. **ETag Handling**: Proper capture and usage for locking - use `first(body('Get_OnHand_for_Part_Batch')?['value'])?['@odata.etag']` after checking `greater(length(body('Get_OnHand_for_Part_Batch')?['value']), 0)`. If zero, branch to a not-found handler.
+2. **ETag Handling**: 
+   - Get items → `first(body('Get_OnHand_for_Part_Batch')?['value'])?['@odata.etag']` (after `greater(length(...?['value']), 0)`).
+   - Get item → `body('Get_OnHand')?['@odata.etag']`.
+   If zero/not found, branch to a not-found handler.
 
 3. **Filter Queries**: Single quote escaping and case sensitivity
 
