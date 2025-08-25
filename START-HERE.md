@@ -32,24 +32,6 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | MaxStockLevel | Number | Optional |
 | IsActive | Yes/No | Required, Default: Yes |
 
-##### Locations Master List
-
-| Column Name | Type | Settings |
-|-------------|------|----------|
-| Title | Single line of text | Location code (e.g., A1, B2, W01) |
-| LocationName | Single line of text | Required (e.g., "Warehouse 1 Shelf A1") |
-| LocationType | Choice | Choices: Warehouse, Store, Transit (Required) |
-| IsActive | Yes/No | Required, Default: Yes |
-
-##### Vendors Master List
-
-| Column Name | Type | Settings |
-|-------------|------|----------|
-| Title | Single line of text | Vendor code |
-| VendorName | Single line of text | Required, Enforce unique values |
-| ContactEmail | Single line of text | Optional |
-| ContactPhone | Single line of text | Optional |
-| IsActive | Yes/No | Required, Default: Yes |
 
 #### Tech Transactions List
 
@@ -60,7 +42,6 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | TransactionType | Choice | Choices: RECEIVE, ISSUE, RETURNED (Required) |
 | Part | Lookup | Required, Allow single selection, Source: Parts Master, Show: PartNumber, Additional fields: PartDescription, DefaultUOM |
 | Batch | Single line of text | Required |
-| Location | Lookup | Optional, Allow single selection, Source: Locations Master, Show: Title |
 | UOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc. (Optional, defaults from Part) |
 | PO | Lookup | Optional (Required for ISSUE/RETURNED), Allow single selection, Source: PO List, Show: PONumber |
 | Qty | Number | Required, Min: 0.01, Decimal places: 2 |
@@ -76,7 +57,6 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | Title | Single line of text | Default column |
 | Part | Lookup | Required, Allow single selection, Source: Parts Master, Show: PartNumber, Additional fields: PartDescription |
 | Batch | Single line of text | Required, Indexed |
-| Location | Lookup | Optional, Allow single selection, Source: Locations Master, Show: Title |
 | UOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc. (Required) |
 | OnHandQty | Number | Required, Default: 0 |
 | IsActive | Yes/No | Required, Default: Yes |
@@ -85,7 +65,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | LastMovementRefId | Single line of text | Optional |
 | ProcessingLock | Single line of text | Optional (for concurrency) |
 
-**Performance Note**: Consider adding a computed column `Key` with formula `=[Part:PartNumber]&"|"&[Batch]&"|"&[Location:Title]&"|"&[UOM]` and indexing it for faster lookups. This creates a unique composite key for each inventory record.
+**Performance Note**: Consider adding a computed column `Key` with formula `=[Part:PartNumber]&"|"&[Batch]&"|"&[UOM]` and indexing it for faster lookups. This creates a unique composite key for each inventory record.
 
 #### Flow Error Log List
 
@@ -103,7 +83,6 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 |-------------|------|----------|
 | Title | Single line of text | Default column |
 | PONumber | Single line of text | Required, Indexed, Enforce unique values |
-| Vendor | Lookup | Required, Allow single selection, Source: Vendors Master, Show: VendorName |
 | OrderDate | Date and Time | Optional |
 | Status | Single line of text | Optional |
 | IsOpen | Yes/No | Required, Default: Yes |
@@ -162,13 +141,11 @@ After building Phase 1, test with this sequence:
 
 **Prerequisites**: 
 - Create a part in Parts Master (PartNumber: "ABC123", Description: "Test Part", DefaultUOM: "EA")
-- Create a location in Locations Master (Title: "A1", LocationName: "Warehouse Shelf A1")
-- Create a vendor in Vendors Master (VendorName: "Test Vendor")
-- Create a PO in PO List (PONumber: "PO001", Vendor: "Test Vendor", IsOpen: Yes)
+- Create a PO in PO List (PONumber: "PO001", IsOpen: Yes)
 
-1. Create a RECEIVE for Part "ABC123", Batch "B001", Location "A1", Qty 100
+1. Create a RECEIVE for Part "ABC123", Batch "B001", Qty 100
 2. Verify On-Hand Material shows 100 units
-3. Create an ISSUE for same part/batch/location, PO "PO001", Qty 30
+3. Create an ISSUE for same part/batch, PO "PO001", Qty 30
 4. Verify On-Hand Material shows 70 units
 5. Check Flow Error Log is empty
 

@@ -62,10 +62,10 @@ Located in `reference-docs/`:
 ### SharePoint Column Names (Exact Names Required)
 
 The flows use these specific column names:
-- Tech Transactions: `Part` (lookup), `Qty`, `Batch`, `Location` (lookup), `UOM`, `PO` (lookup)
-- On-Hand Material: `Part` (lookup), `OnHandQty`, `Batch`, `Location` (lookup), `UOM`
+- Tech Transactions: `Part` (lookup), `Qty`, `Batch`, `UOM`, `PO` (lookup)
+- On-Hand Material: `Part` (lookup), `OnHandQty`, `Batch`, `UOM`
 - Additional columns: `IsActive`, `LastMovementAt`, `LastMovementType`, `LastMovementRefId`
-- Master lists: `PartNumber` (in Parts Master), `Title` (in Locations Master), `VendorName` (in Vendors Master)
+- Parts Master: `PartNumber`, `PartDescription`, `DefaultUOM`
 - Flow Error Log: `Title` (flow name), `ErrorMessage` (multi-line for full stack traces), `FlowRunURL` (run URL, optional), `ItemID` (source transaction ID), `Timestamp`
 
 Recommended types/formatting:
@@ -96,18 +96,16 @@ Recommended types/formatting:
 
 ### Required SharePoint Lists
 
-Seven lists must be created with exact column names (create master lists first):
+Five lists must be created with exact column names (create Parts Master first):
 
-Master Lists (create first):
+Master List:
 1. **Parts Master** - Part catalog with descriptions and default UOM
-2. **Locations Master** - Valid storage locations
-3. **Vendors Master** - Vendor information
 
 Transaction Lists:
-4. **Tech Transactions** - Incoming transaction records (uses lookups to Parts, Locations, PO)
-5. **On-Hand Material** - Current inventory state (uses lookups to Parts, Locations)
-6. **PO List** - Purchase order validation (uses lookup to Vendors)
-7. **Flow Error Log** - Error tracking and debugging
+2. **Tech Transactions** - Incoming transaction records (uses lookup to Parts and PO)
+3. **On-Hand Material** - Current inventory state (uses lookup to Parts)
+4. **PO List** - Purchase order validation
+5. **Flow Error Log** - Error tracking and debugging
 
 PO List minimum columns:
 - `PONumber` (Single line of text, Enforce unique = Yes)
@@ -159,19 +157,18 @@ Action setting (Get items): set "Top Count" = `1` (since `PONumber` is unique)
 ### Indexing Recommendations
 
 **Tech Transactions List**:
-- Index: `PartNumber`, `Batch`, `PONumber`, `PostStatus`, `UOM`, `Location`
+- Index: `Part`, `Batch`, `PO`, `PostStatus`, `UOM`
 - These support filter queries in Get items operations
 - Note: Each additional index can slow writes; prioritize columns used in $filter and lookups, then revisit indexes after observing real query patterns.
 
 **On-Hand Material List**:
-- Index: `PartNumber`, `Batch`, `UOM`, `Location`
+- Index: `Part`, `Batch`, `UOM`
 - Prefer a dedicated text column `CompositeKey` (indexed) populated by the flow.
 - Prefer normalized key (trim + upper-case):
 - `concat(
   toUpper(trim(coalesce(variables('vPartNumber'), ''))),'|',
   toUpper(trim(coalesce(variables('vBatch'), ''))),'|',
-  toUpper(trim(coalesce(variables('vUOM'), ''))),'|',
-  toUpper(trim(coalesce(variables('vLocation'), '')))
+  toUpper(trim(coalesce(variables('vUOM'), '')))
   )`
 - Use a delimiter like `|` that won't appear in data. If a component may contain `|`, sanitize:
   `replace(toUpper(trim(coalesce(variables('vPartNumber'), ''))), '|', '¦')`
