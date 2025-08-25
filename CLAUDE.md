@@ -70,7 +70,7 @@ Recommended types/formatting:
 - `IsActive`: Yes/No.
 - `LastMovementAt`: Date and Time (UTC). Use `utcNow()` when writing.
 - `LastMovementType`, `LastMovementRefId`: Single line of text.
-- Flow Error Log → `ItemID`: Number; `FlowRunURL`: Hyperlink or Picture; others: Single line of text.
+- Flow Error Log → `ItemID`: Number; `Timestamp`: Date and Time (UTC); `FlowRunURL`: Hyperlink or Picture; `Title`/`ErrorMessage`: Single line of text.
   - Writing `FlowRunURL` (SharePoint connector): supply an object
     `{ "Url": "@{variables('vRunUrl')}", "Description": "Run details" }`
   - Writing via SharePoint REST: use SP.FieldUrlValue shape (nometadata payload omits `__metadata`):
@@ -100,8 +100,11 @@ PO List minimum columns:
 - `IsOpen` (Yes/No)
 - Optional metadata: `Vendor` (Text), `PODate` (Date), `Notes` (Multiline)
 Filter example (FLOW-01 validation):
-`$filter=PONumber eq '@{variables('vPONumberEscaped')}' and IsOpen eq true`
-Action setting: set "Top Count" = `1` (since `PONumber` is unique)
+- Get items (Filter Query field):
+  `PONumber eq '@{variables('vPONumberEscaped')}' and IsOpen eq true`
+- REST (Uri querystring):
+  `?$filter=PONumber eq '@{variables('vPONumberEscaped')}' and IsOpen eq true&$top=1`
+Action setting (Get items): set "Top Count" = `1` (since `PONumber` is unique)
 
 ### Expression Syntax Notes
 
@@ -174,8 +177,8 @@ When updating documentation:
   - Example (Send an HTTP request to SharePoint — preferred):
     - Site Address: `@{environment('SharePointSiteUrl')}`
     - Method: POST
-    - Uri (resilient): `/_api/web/lists(guid'{YourListGuid}')/items(@{variables('vOnHandId')})`
-      - Alternative (title-based): `/_api/web/lists/getbytitle('On-Hand Material')/items(@{variables('vOnHandId')})`
+    - Uri (resilient): `/_api/web/lists(guid'{YourListGuid}')/items(@{int(variables('vOnHandId'))})`
+      - Alternative (title-based): `/_api/web/lists/getbytitle('On-Hand Material')/items(@{int(variables('vOnHandId'))})`
     - Headers: as above (plus `X-HTTP-Method: MERGE` for POST)
   - Alternative (generic HTTP connector with Entra ID):
     - Add `Authorization: Bearer <token>` and any tenant-required headers (e.g., request digest in classic contexts).
@@ -235,12 +238,19 @@ Each flow includes specific test cases:
    - 5xx Server Errors → transient faults: retry up to 3 attempts with bounded exponential backoff  
      `@and(greaterOrEquals(outputs('Your_Http_Action_Name')?['statusCode'], 500), less(outputs('Your_Http_Action_Name')?['statusCode'], 600))`
    - Delay duration per attempt (vAttempt = 1..3). Prefer `Retry-After` (secs). If only `x-ms-retry-after-ms` is present, convert ms→s. Else use exponential + jitter:
-     `PT@{coalesce(
-        int(outputs('Your_Http_Action_Name')?['headers']?['Retry-After']),
-        int(outputs('Your_Http_Action_Name')?['headers']?['retry-after']),
-        ceiling(div(float(outputs('Your_Http_Action_Name')?['headers']?['x-ms-retry-after-ms']), 1000)),
-        add(int(pow(2, sub(variables('vAttempt'), 1))), rand(0,2))
-     )}S`
+     `PT@{int(coalesce(
+        outputs('Your_Http_Action_Name')?['headers']?['Retry-After'],
+        outputs('Your_Http_Action_Name')?['headers']?['retry-after'],
+        if(
+          or(
+            equals(outputs('Your_Http_Action_Name')?['headers']?['x-ms-retry-after-ms'], null),
+            empty(outputs('Your_Http_Action_Name')?['headers']?['x-ms-retry-after-ms'])
+          ),
+          null,
+          string(ceiling(div(float(outputs('Your_Http_Action_Name')?['headers']?['x-ms-retry-after-ms']), 1000)))
+        ),
+        string(add(int(pow(2, sub(variables('vAttempt'), 1))), rand(0,2)))
+     ))}S`
    - Do Until termination (complete when success OR attempts exhausted):
      `@or(
        and(greaterOrEquals(outputs('Lock_Action')?['statusCode'], 200), less(outputs('Lock_Action')?['statusCode'], 300)),
