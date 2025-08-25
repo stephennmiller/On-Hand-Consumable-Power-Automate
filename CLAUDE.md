@@ -68,7 +68,7 @@ The flows use these specific column names:
 - `environment('SharePointSiteUrl')` - Your SharePoint site URL
 - `environment('AdminEmail')` - Email address for critical alerts (can be a distribution list or shared mailbox)
 
-**Note**: Power Automate cloud flows use `environment()` function for Dataverse environment variables, not `parameters()` which is used in Logic Apps.
+**Note**: Power Automate cloud flows use `environment()` for Dataverse environment variables (not `parameters()`, which is for Logic Apps). Create variables inside a Solution and set a per-environment "Current value" before running flows.
 
 ### Required SharePoint Lists
 
@@ -78,6 +78,11 @@ Four lists must be created with exact column names:
 3. **Flow Error Log** - Error tracking and debugging
 4. **PO List** - Purchase order validation (for ISSUE transactions)
 
+PO List minimum columns:
+- `PONumber` (Single line of text, Enforce unique = Yes)
+- `IsOpen` (Yes/No)
+- Optional metadata: `Vendor` (Text), `PODate` (Date), `Notes` (Multiline)
+
 ### Expression Syntax Notes
 
 - Choice column access:
@@ -85,6 +90,7 @@ Four lists must be created with exact column names:
   - When SharePoint returns object: `triggerOutputs()?['body/PostStatus']?['Value']`
   - Example condition (object): `@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')`
   - Example condition (string): `@equals(triggerOutputs()?['body/PostStatus'], 'Validated')`
+  - Tip: `triggerBody()` and `triggerOutputs()?['body']` are equivalent. Pick one form and use it consistently in a given flow
 - Always escape single quotes in filters: `replace(variables('vPart'),'''','''''')`
 - Float conversion required for calculations: `float(variables('vQty'))`
 - Round to 2 decimals for quantities: `round(float(variables('vQty')), 2)`
@@ -100,11 +106,11 @@ Four lists must be created with exact column names:
 
 **On-Hand Material List**:
 - Index: `PartNumber`, `Batch`, `UOM`, `Location`
-- Consider composite key column: `=[PartNumber]&"-"&[Batch]` (indexed)
+- Prefer a dedicated text column `CompositeKey` (indexed) populated by the flow, e.g., `concat(PartNumber, '-', Batch)`. This works reliably in $filter and supports lookups
 
 **PO List**:
 - Index: `PONumber` (required for ISSUE validation lookups)
-- Enforce unique values on `PONumber` (List settings → Validation/Indexed columns or via content type governance) to prevent duplicate POs
+- Enforce unique values on `PONumber` (List settings → select the `PONumber` column → set "Enforce unique values" = Yes). SharePoint will auto-index the column
 
 ## Documentation Maintenance
 
@@ -119,7 +125,7 @@ When updating documentation:
 
 - **FLOW-03 Locking Pattern**: Uses HTTP MERGE with ETag for optimistic locking, requires careful error handling
   - Send `If-Match: <etag>` with MERGE/Update; success returns 204 No Content
-  - On 412 (Precondition Failed), re-read the item to get latest ETag, reapply changes, retry with bounded exponential backoff (max 3 attempts)
+  - On 412 (Precondition Failed), re-read the item to get latest ETag, reapply changes, retry with bounded exponential backoff (e.g., 1s, 2s, 4s; max 3 attempts)
 - **Rollback Mechanism**: Step 16 in FLOW-03 implements compensating transactions
 - **Batch Processing**: FLOW-05 uses SharePoint batch APIs for significant performance improvement (results vary by tenant and list size)
 - **Circuit Breaker**: Advanced flows implement circuit breaker pattern to prevent cascade failures
@@ -152,10 +158,8 @@ Each flow includes specific test cases:
 7. **HTTP Status Codes**:
    - Lock success = 204, check with `equals(outputs('Lock_Action')?['statusCode'], 204)`
    - 412 Precondition Failed = ETag mismatch, implement retry:
-     ```powerautomate
-     @equals(outputs('HTTP_Request')?['statusCode'], 412)
-     // In Do Until loop: retry up to 3 times with 2-second delay
-     ```
+     - Expression: `@equals(outputs('HTTP_Request')?['statusCode'], 412)`
+     - In Do Until loop: retry up to 3 times with exponential backoff
 
 ## Important Files for Reference
 
