@@ -44,6 +44,7 @@ Located in `reference-docs/`:
 - Trigger concurrency set to 1 for ISSUE flows
   - Flow settings path: Trigger → Settings → Concurrency Control → On, Degree of Parallelism: 1
   - Note: RECEIVE flows can use 2-5 parallelism for better throughput
+  - ISSUE flows also set a Title-based sentinel during lock acquisition to provide visibility during retries
 
 ### Error Recovery
 
