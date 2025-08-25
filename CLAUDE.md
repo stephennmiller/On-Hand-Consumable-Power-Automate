@@ -165,10 +165,14 @@ When updating documentation:
   - Use either:
     - POST + header `X-HTTP-Method: MERGE`, or
     - PATCH (if your HTTP action/tenant supports it)
-  - Example (HTTP action):
+  - Example (Send an HTTP request to SharePoint — preferred):
+    - Site Address: `@{environment('SharePointSiteUrl')}`
     - Method: POST
-    - Uri: `https://{site}/_api/web/lists/getbytitle('On-Hand Material')/items(@{variables('vOnHandId')})`
+    - Uri: `/_api/web/lists/getbytitle('On-Hand Material')/items(@{variables('vOnHandId')})`
     - Headers: as above (plus `X-HTTP-Method: MERGE` for POST)
+  - Alternative (generic HTTP connector with Entra ID):
+    - Add `Authorization: Bearer <token>` and any tenant-required headers (e.g., request digest in classic contexts).
+    - This path is more complex and generally not recommended when the SharePoint action is available.
   - On 412 (Precondition Failed), re-read the item to get latest ETag, reapply changes, retry with bounded exponential backoff (e.g., 1s, 2s, 4s; max 3 attempts)
 - **Rollback Mechanism**: Step 16 in FLOW-03 implements compensating transactions
 - **Batch Processing**: FLOW-05 uses SharePoint batch APIs for significant performance improvement (results vary by tenant and list size)
@@ -209,8 +213,9 @@ Each flow includes specific test cases:
 
 7. **Deterministic Pagination**:
    - Use `$orderby=ID asc` (or another stable key).
-   - Set `$top=<pageSize>` (e.g., 500) and enable pagination in action settings with the same threshold.
-   - On retries, resume using the connector-managed `$skiptoken` (implicit when Pagination is On) to avoid duplicate or missing items.
+   - Set `$top=<pageSize>` (e.g., 500) and enable Pagination in action settings.
+   - Set the Pagination threshold high enough to cover the total expected items (it does not need to equal `$top`).
+   - The connector manages `$skiptoken` internally when Pagination is On; stable ordering plus idempotent filters helps avoid duplicates on retries.
 
 8. **HTTP Status Codes**:
    - Lock success = 204 (and in some cases 200 for PATCH)
@@ -222,8 +227,13 @@ Each flow includes specific test cases:
      `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 429)`
    - 5xx Server Errors → transient faults: retry up to 3 attempts with bounded exponential backoff  
      `@and(greaterOrEquals(outputs('Your_Http_Action_Name')?['statusCode'], 500), less(outputs('Your_Http_Action_Name')?['statusCode'], 600))`
-   - Delay duration per attempt (vAttempt = 1..3), prefer `Retry-After` header (secs) else exponential + jitter:
-     `PT@{coalesce(int(outputs('Your_Http_Action_Name')?['headers']?['Retry-After']), add(int(pow(2, sub(variables('vAttempt'), 1))), rand(0,2)))}S`
+   - Delay duration per attempt (vAttempt = 1..3). Prefer `Retry-After` (secs). If only `x-ms-retry-after-ms` is present, convert ms→s. Else use exponential + jitter:
+     `PT@{coalesce(
+        int(outputs('Your_Http_Action_Name')?['headers']?['Retry-After']),
+        int(outputs('Your_Http_Action_Name')?['headers']?['retry-after']),
+        ceiling(div(float(outputs('Your_Http_Action_Name')?['headers']?['x-ms-retry-after-ms']), 1000)),
+        add(int(pow(2, sub(variables('vAttempt'), 1))), rand(0,2))
+     )}S`
    - Do Until termination (complete when success OR attempts exhausted):
      `@or(equals(outputs('Lock_Action')?['statusCode'], 204), greaterOrEquals(variables('vAttempt'), 3))`
 
