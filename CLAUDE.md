@@ -44,7 +44,7 @@ Located in `reference-docs/`:
 - Trigger concurrency set to 1 for ISSUE flows
   - Flow settings path: Trigger → Settings → Concurrency Control → On, Degree of Parallelism: 1
   - Note: RECEIVE flows can use 2-5 parallelism for better throughput
-  - ISSUE flows also set a Title-based sentinel during lock acquisition to provide visibility during retries
+  - In the provided ISSUE flow, a Title-based sentinel is set during lock acquisition to provide visibility during retries (optional aid; ETag remains the primary lock)
 
 ### Error Recovery
 
@@ -68,7 +68,7 @@ The flows use these specific column names:
 - `environment('SharePointSiteUrl')` - Your SharePoint site URL
 - `environment('AdminEmail')` - Email address for critical alerts (can be a distribution list or shared mailbox)
 
-**Note**: Power Automate cloud flows use `environment()` for Dataverse environment variables (not `parameters()`, which is for Logic Apps). Create variables inside a Solution and set a per-environment "Current value" before running flows.
+**Note**: Use `environment()` for Dataverse environment variables in cloud flows. Do not use `parameters()` for environment variables; `parameters()` refers to flow-level parameters. Create the variables inside a Solution and set a per-environment "Current value" before running flows.
 
 ### Required SharePoint Lists
 
@@ -90,7 +90,8 @@ PO List minimum columns:
   - When SharePoint returns object: `triggerOutputs()?['body/PostStatus']?['Value']`
   - Example condition (object): `@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')`
   - Example condition (string): `@equals(triggerOutputs()?['body/PostStatus'], 'Validated')`
-  - Tip: `triggerBody()` and `triggerOutputs()?['body']` are equivalent. Pick one form and use it consistently in a given flow
+  - Tip: Use Peek code on the trigger/Get item to confirm whether the Choice value is a string or an object (with `Value`) before choosing an expression.
+  - Note: `triggerBody()` and `triggerOutputs()?['body']` are equivalent—use one form consistently in a given flow.
 - Always escape single quotes in filters: `replace(variables('vPart'),'''','''''')`
 - Float conversion required for calculations: `float(variables('vQty'))`
 - Round to 2 decimals for quantities: `round(float(variables('vQty')), 2)`
@@ -109,8 +110,12 @@ PO List minimum columns:
 - Index: `PartNumber`, `Batch`, `UOM`, `Location`
 - Prefer a dedicated text column `CompositeKey` (indexed) populated by the flow, e.g., `concat(PartNumber, '-', Batch)`. This works reliably in $filter and supports lookups
 
+**Flow Error Log**:
+- Index: `ItemID` (recommended), `Title` (optional)
+- Rationale: Speeds up incident triage and cross-referencing specific source transactions.
+
 **PO List**:
-- Index: `PONumber` (required for ISSUE validation lookups)
+- Index: `PONumber` (required for FLOW-01 intake-validation lookups)
 - Enforce unique values on `PONumber` (List settings → select the `PONumber` column → set "Enforce unique values" = Yes). SharePoint will auto-index the column
 
 ## Documentation Maintenance
@@ -146,13 +151,13 @@ Each flow includes specific test cases:
 - Daily Recalc: Process 10,000+ items
 - Error Rate: <0.1% target
 
-**Assumptions**: Standard connectors, SharePoint list indexes configured, low contention, E3/E5 tenant with proper throttling limits
+**Assumptions**: Standard connectors, well-maintained list indexes, low contention, RECEIVE flows running with Degree of Parallelism > 1, and E3/E5 tenant throttling within norms.
 
 ## Common Troubleshooting Areas
 
 1. **Trigger Conditions**: Exact syntax and Choice column value access
 
-2. **ETag Handling**: Proper capture and usage for locking - use `first(body('Get_OnHand_for_Part_Batch')?['value'])?['@odata.etag']`
+2. **ETag Handling**: Proper capture and usage for locking - use `first(body('Get_OnHand_for_Part_Batch')?['value'])?['@odata.etag']` after checking `greater(length(body('Get_OnHand_for_Part_Batch')?['value']), 0)`. If zero, branch to a not-found handler.
 
 3. **Filter Queries**: Single quote escaping and case sensitivity
 
@@ -162,7 +167,9 @@ Each flow includes specific test cases:
 
 6. **Concurrency Issues**: Set trigger concurrency to 1 for ISSUE flows to prevent race conditions
 
-7. **HTTP Status Codes**:
+7. **Deterministic Ordering**: When using pagination, set `$orderby=ID asc` (or another stable key) to ensure consistent page boundaries across retries.
+
+8. **HTTP Status Codes**:
    - Lock success = 204  
      `equals(outputs('Lock_Action')?['statusCode'], 204)`
    - 412 Precondition Failed → ETag mismatch: re-read the item to refresh ETag, then retry (max 3 attempts)  
@@ -171,6 +178,8 @@ Each flow includes specific test cases:
      `@equals(outputs('HTTP_Request')?['statusCode'], 429)`
    - 5xx Server Errors → transient faults: retry up to 3 attempts with bounded exponential backoff  
      `@and(greaterOrEquals(outputs('HTTP_Request')?['statusCode'], 500), less(outputs('HTTP_Request')?['statusCode'], 600))`
+   - Delay duration per attempt (vAttempt = 1..3), seconds with small jitter:
+     `PT@{add(int(pow(2, sub(variables('vAttempt'), 1))), rand(0,2))}S`
 
 ## Important Files for Reference
 
