@@ -33,18 +33,23 @@ Located in `reference-docs/`:
 
 1. **New** → Transaction created in Tech Transactions list
 2. **Validated** → Passes business rules (triggers processing flows)
-3. **Processing** → Being handled by receive/issue flows
+3. **Processing** → Being handled by receive/issue/returned flows
 4. **Posted** → Successfully completed
 5. **Error** → Failed with logged reason
+
+### Transaction Types
+- **RECEIVE** → Adds inventory (incoming materials)
+- **ISSUE** → Removes inventory (materials consumed)
+- **RETURNED** → Removes inventory (defective/damaged items returned to vendor)
 
 ### Concurrency Control
 
 - Uses ETag-based optimistic locking for inventory updates (primary mechanism)
 - Optional: You may add a boolean `ProcessingLock` column for UI clarity/guardrails, but it is not required by the provided flows
-- Trigger concurrency set to 1 for ISSUE flows
+- Trigger concurrency set to 1 for ISSUE and RETURNED flows (both decrement inventory)
   - Flow settings path: Trigger → Settings → Concurrency Control → On, Degree of Parallelism: 1
   - Note: RECEIVE flows can use 2-5 parallelism for better throughput
-  - In the provided ISSUE flow, a Title-based sentinel is set during lock acquisition to provide visibility during retries (optional aid; ETag remains the primary lock)
+  - In the provided ISSUE/RETURNED flow, a Title-based sentinel is set during lock acquisition to provide visibility during retries (optional aid; ETag remains the primary lock)
 
 ### Error Recovery
 
@@ -57,10 +62,10 @@ Located in `reference-docs/`:
 ### SharePoint Column Names (Exact Names Required)
 
 The flows use these specific column names:
-- Tech Transactions: `Qty` (not Quantity)
-- On-Hand Material: `OnHandQty` (not TotalQuantity)
-- Additional columns: `UOM`, `Location`, `PONumber` in Tech Transactions
-- On-Hand columns: `IsActive`, `LastMovementAt`, `LastMovementType`, `LastMovementRefId`
+- Tech Transactions: `Part` (lookup), `Qty`, `Batch`, `Location` (lookup), `UOM`, `PO` (lookup)
+- On-Hand Material: `Part` (lookup), `OnHandQty`, `Batch`, `Location` (lookup), `UOM`
+- Additional columns: `IsActive`, `LastMovementAt`, `LastMovementType`, `LastMovementRefId`
+- Master lists: `PartNumber` (in Parts Master), `Title` (in Locations Master), `VendorName` (in Vendors Master)
 - Flow Error Log: `Title` (flow name), `ErrorMessage` (multi-line for full stack traces), `FlowRunURL` (run URL, optional), `ItemID` (source transaction ID), `Timestamp`
 
 Recommended types/formatting:
@@ -91,11 +96,18 @@ Recommended types/formatting:
 
 ### Required SharePoint Lists
 
-Four lists must be created with exact column names:
-1. **Tech Transactions** - Incoming transaction records
-2. **On-Hand Material** - Current inventory state
-3. **Flow Error Log** - Error tracking and debugging
-4. **PO List** - Purchase order validation used by FLOW-01 (Intake-Validation, IsOpen check); optionally referenced by ISSUE processing
+Seven lists must be created with exact column names (create master lists first):
+
+Master Lists (create first):
+1. **Parts Master** - Part catalog with descriptions and default UOM
+2. **Locations Master** - Valid storage locations
+3. **Vendors Master** - Vendor information
+
+Transaction Lists:
+4. **Tech Transactions** - Incoming transaction records (uses lookups to Parts, Locations, PO)
+5. **On-Hand Material** - Current inventory state (uses lookups to Parts, Locations)
+6. **PO List** - Purchase order validation (uses lookup to Vendors)
+7. **Flow Error Log** - Error tracking and debugging
 
 PO List minimum columns:
 - `PONumber` (Single line of text, Enforce unique = Yes)
@@ -108,6 +120,19 @@ Filter example (FLOW-01 validation) (note: Yes/No is a boolean; use `true`/`fals
 - REST (Uri querystring):
   `?$filter=PONumber eq '@{variables('vPONumberEscaped')}' and IsOpen eq true&$top=1`
 Action setting (Get items): set "Top Count" = `1` (since `PONumber` is unique)
+
+### Working with Lookup Columns
+
+- Accessing lookup values in triggers/actions:
+  - Lookup ID: `triggerBody()?['Part']?['Id']` or `triggerBody()?['PartId']?['Value']`
+  - Lookup primary field: `triggerBody()?['Part']?['Value']`
+  - Additional lookup fields: `triggerBody()?['Part_x003a_PartDescription']?['Value']`
+- Filtering by lookups in OData:
+  - By ID: `Part/Id eq 123`
+  - By value: `Part/PartNumber eq 'ABC123'` (requires `$expand=Part`)
+- Setting lookup values:
+  - SharePoint connector: Use the ID directly
+  - REST API: `{ "PartId": 123 }` or `{ "Part@odata.bind": "Parts(123)" }`
 
 ### Expression Syntax Notes
 
@@ -122,7 +147,7 @@ Action setting (Get items): set "Top Count" = `1` (since `PONumber` is unique)
   - Single-select (SharePoint connector): pass a string (e.g., `'Validated'`).
   - Single-select (SharePoint REST, nometadata): send `{ "YourChoiceFieldInternalName": "Validated" }`.
   - Multi-select (SharePoint connector actions): pass an array of strings (e.g., `['Open','Urgent']`).
-  - Multi-select (SharePoint REST via "Send an HTTP request to SharePoint"): 
+  - Multi-select (SharePoint REST via "Send an HTTP request to SharePoint"):
     `{ "YourChoiceFieldInternalName": { "results": ["Open","Urgent"] } }`.
 - Always escape single quotes in filters: `replace(variables('vPartNumber'),'''','''''')`
 - Float conversion required for calculations: `float(variables('vQty'))`
@@ -223,7 +248,7 @@ Each flow includes specific test cases:
 
 1. **Trigger Conditions**: Exact syntax and Choice column value access
 
-2. **ETag Handling**: 
+2. **ETag Handling**:
    - Get items → `first(body('Get_OnHand_for_Part_Batch')?['value'])?['@odata.etag']` (after `greater(length(...?['value']), 0)`).
    - Get item → `body('Get_OnHand')?['@odata.etag']`.
    If zero/not found, branch to a not-found handler.

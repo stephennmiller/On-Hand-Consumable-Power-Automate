@@ -169,7 +169,11 @@ Add **"Condition"** action:
 - Paste:
 
 ```powerautomate
-@or(equals(variables('vType'),'ISSUE'), equals(variables('vType'),'RECEIVE'))
+@or(
+  equals(variables('vType'),'ISSUE'),
+  equals(variables('vType'),'RECEIVE'),
+  equals(variables('vType'),'RETURNED')
+)
 ```
 
 **If No:**
@@ -180,7 +184,7 @@ Add **"Condition"** action:
 - Id: `triggerBody()?['ID']`
 - Fields:
   - PostStatus: `Error`
-  - PostMessage: `Invalid TransactionType - must be Issue or Receive`
+  - PostMessage: `Invalid TransactionType - must be ISSUE, RECEIVE, or RETURNED`
   - PostedAt: `utcNow()`
 - Add **"Terminate"** action
   - Status: Succeeded
@@ -264,7 +268,7 @@ Add **"Condition"** action:
 
 **Configure:**
 
-- vType | is equal to | ISSUE
+- or(equals(variables('vType'), 'ISSUE'), equals(variables('vType'), 'RETURNED'))
 
 **If Yes:**
 
@@ -280,7 +284,7 @@ Add **"Condition"** inside Yes branch:
 
 **If No:**
 
-- Update item with PostMessage: `PONumber is required for Issue transactions`
+- Update item with PostMessage: `PONumber is required for ISSUE and RETURNED transactions`
 - Terminate
 
 #### Step 10b: Fetch PO Record with Retry

@@ -1,12 +1,12 @@
-# Flow 3: Post ISSUES to On-Hand
+# Flow 3: Post ISSUES and RETURNED to On-Hand
 
 ## Purpose
 
-Processes validated ISSUE transactions to remove inventory from the On-Hand Material list. Includes stock availability checking and prevents negative inventory.
+Processes validated ISSUE and RETURNED transactions to remove inventory from the On-Hand Material list. Includes stock availability checking and prevents negative inventory.
 
 ## Flow Configuration
 
-**Flow Name:** `TT - Issue → OnHand Upsert`
+**Flow Name:** `TT - Issue/Returned → OnHand Decrement`
 
 **Trigger:** When an item is created or modified  
 **List:** Tech Transactions
@@ -21,7 +21,9 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
   ),
   or(
     equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'),
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'ISSUE')
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'ISSUE'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RETURNED'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'RETURNED')
   )
 )
 ```
@@ -57,7 +59,9 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
   ),
   or(
     equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'),
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'ISSUE')
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'ISSUE'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RETURNED'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'RETURNED')
   )
 )
 ```
