@@ -31,7 +31,7 @@ Transactions progress through these statuses:
 3. Name: `TT - Intake Validate`
 4. Choose trigger: **"When an item is created - SharePoint"**
 5. Configure:
-   - Site Address: `@{parameters('SharePointSiteUrl')}`
+   - Site Address: `@{environment('SharePointSiteUrl')}`
    - List Name: Tech Transactions
 6. **Trigger Settings:**
    - Click three dots → Settings
@@ -135,7 +135,7 @@ Add **"Get items - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Filter Query:
 
@@ -169,18 +169,22 @@ Add **"Condition"** action:
 - Paste:
 
 ```powerautomate
-@or(equals(variables('vType'),'ISSUE'), equals(variables('vType'),'RECEIVE'))
+@or(
+  equals(variables('vType'),'ISSUE'),
+  equals(variables('vType'),'RECEIVE'),
+  equals(variables('vType'),'RETURNED')
+)
 ```
 
 **If No:**
 
 - Add **"Update item - SharePoint"** action
-- Site Address: Your site
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `triggerBody()?['ID']`
 - Fields:
   - PostStatus: `Error`
-  - PostMessage: `Invalid TransactionType - must be Issue or Receive`
+  - PostMessage: `Invalid TransactionType - must be ISSUE, RECEIVE, or RETURNED`
   - PostedAt: `utcNow()`
 - Add **"Terminate"** action
   - Status: Succeeded
@@ -264,7 +268,7 @@ Add **"Condition"** action:
 
 **Configure:**
 
-- vType | is equal to | ISSUE
+- or(equals(variables('vType'), 'ISSUE'), equals(variables('vType'), 'RETURNED'))
 
 **If Yes:**
 
@@ -280,7 +284,7 @@ Add **"Condition"** inside Yes branch:
 
 **If No:**
 
-- Update item with PostMessage: `PONumber is required for Issue transactions`
+- Update item with PostMessage: `PONumber is required for ISSUE and RETURNED transactions`
 - Terminate
 
 #### Step 10b: Fetch PO Record with Retry
@@ -291,11 +295,11 @@ Add **"Get items - SharePoint"** action (in Yes of 10a):
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: PO List
 - Filter Query: `PONumber eq '@{replace(variables('vPO'), '''', '''''')}'`
 - Top Count: 1
-- **Select Query:** `PONumber,Status,VendorName,OrderDate`
+- **Select Query:** `PONumber,Status,VendorName,OrderDate,IsOpen`
 - **Settings:**
   - Retry Policy: Exponential
   - Count: 3
@@ -325,7 +329,7 @@ Add **"Update item - SharePoint"** action (at the end of Try scope):
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `triggerBody()?['ID']`
 - Fields:
@@ -356,14 +360,13 @@ Add **"Create item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
-  - FlowName: `TT - Intake Validate`
+  - Title: `TT - Intake Validate`
   - ErrorMessage: `@{concat('Error validating transaction ID: ', triggerBody()?['ID'], ' - ', substring(string(result('Try_-_Main_Logic')),0,min(4000,length(string(result('Try_-_Main_Logic'))))))}`
-  - StackTrace: `@{variables('vFlowRunId')}`
-  - RecordId: `@{triggerBody()?['ID']}`
-  - Severity: `Critical`
+  - FlowRunURL: `@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', variables('vFlowRunId'))}`
+  - ItemID: `@{triggerBody()?['ID']}`
   - Timestamp: `utcNow()`
 
 #### Step 12b: Update Transaction with Error
@@ -372,7 +375,7 @@ Add **"Update item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `triggerBody()?['ID']`
 - Fields:
@@ -386,7 +389,7 @@ Add **"Send an email (V2)"** action:
 
 **Configure:**
 
-- To: `@{parameters('AdminEmail')}`
+- To: `@{environment('AdminEmail')}`
 - Subject: `CRITICAL: Intake Validation Flow Error`
 - Body:
 

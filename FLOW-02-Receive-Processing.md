@@ -31,7 +31,7 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 3. Name: `TT - Receive → OnHand Upsert`
 4. Choose trigger: **"When an item is created or modified - SharePoint"**
 5. Configure:
-   - Site Address: `@{parameters('SharePointSiteUrl')}`
+   - Site Address: `@{environment('SharePointSiteUrl')}`
    - List Name: Tech Transactions
 6. **Advanced Options:**
    - Limit Columns by View: Use a view that includes only necessary fields
@@ -45,8 +45,8 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 
 ```powerautomate
 @and(
-  equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
-  equals(toUpper(triggerOutputs()?['body/TransactionType']), 'RECEIVE')
+  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
+  equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RECEIVE')
 )
 ```
 
@@ -55,6 +55,8 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 ### Step 3: Add Transaction Scope
 
 Add **"Scope"** action named **"Transaction - Receive Processing"**
+
+**Note:** The internal name will be "Transaction_-_Receive_Processing" which is referenced in error handling expressions.
 
 All subsequent steps go inside this scope for atomic transaction handling.
 
@@ -125,11 +127,13 @@ This prevents SharePoint throttling when processing multiple transactions.
 
 Add **"Get items - SharePoint"** action:
 
-**Action Name:** "Get On-Hand for Part+Batch (Single Record)"
+**Action Name:** "Get_OnHand_for_Part_Batch"
+
+**Note:** Power Automate generates internal action names based on what you type. To ensure expressions work correctly, rename this action to exactly "Get_OnHand_for_Part_Batch" (without spaces or special characters) in the action's settings.
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Filter Query:
 
@@ -163,7 +167,7 @@ Add **"Condition"** action:
 - Paste:
 
 ```powerautomate
-@greater(length(body('Get_On-Hand_for_Part+Batch')?['value']), 0)
+@greater(length(body('Get_OnHand_for_Part_Batch')?['value']), 0)
 ```
 
 ### Step 8: Configure YES Branch (Update Existing)
@@ -178,7 +182,7 @@ Add **"Compose"** action:
 
 **Inputs:**
 ```powerautomate
-@{first(body('Get_On-Hand_for_Part+Batch')?['value'])?['@odata.etag']}
+@{first(body('Get_OnHand_for_Part_Batch')?['value'])?['@odata.etag']}
 ```
 
 #### Step 8a2: Store Original Title
@@ -187,19 +191,21 @@ Add **"Initialize variable"** action:
 
 **Name:** vOriginalTitle
 **Type:** String
-**Value:** `@{first(body('Get_On-Hand_for_Part+Batch')?['value'])?['Title']}`
+**Value:** `@{first(body('Get_OnHand_for_Part_Batch')?['value'])?['Title']}`
 
 #### Step 8b: Update with New Quantity (Using ETag)
 
 Add **"Send an HTTP request to SharePoint"** action:
 
-**Action Name:** "Update Existing On-Hand with ETag"
+**Action Name:** "Update_Existing_OnHand_with_ETag"
+
+**Note:** Rename this action to exactly "Update_Existing_OnHand_with_ETag" to match expressions below.
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - Method: POST
-- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch')?['value'])?['ID']})`
+- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_OnHand_for_Part_Batch')?['value'])?['ID']})`
 - Headers:
   - IF-MATCH: `@{outputs('Capture_ETag')}`
   - X-HTTP-Method: MERGE
@@ -211,7 +217,7 @@ Add **"Send an HTTP request to SharePoint"** action:
     "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
   },
   "Title": "@{variables('vOriginalTitle')}",
-  "OnHandQty": @{add(float(coalesce(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty'], 0)), float(variables('vQty')))},
+  "OnHandQty": @{round(add(float(coalesce(first(body('Get_OnHand_for_Part_Batch')?['value'])?['OnHandQty'], 0)), float(variables('vQty'))), 2)},
   "LastMovementAt": "@{utcNow()}",
   "LastMovementType": "Receive",
   "LastMovementRefId": "@{variables('vId')}",
@@ -225,35 +231,46 @@ Add **"Send an HTTP request to SharePoint"** action:
 
 Add **"Condition"** action:
 
-**Configure Run After:** Set to run when "Update Existing On-Hand with ETag" has failed
+**Configure Run After:** Set to run when "Update_Existing_OnHand_with_ETag" has failed
 
-**Condition:** `@equals(outputs('Update_Existing_On-Hand_with_ETag')['statusCode'], 412)`
+**Condition:**
+```powerautomate
+@or(
+  equals(outputs('Update_Existing_OnHand_with_ETag')?['statusCode'], 412),
+  equals(outputs('Update_Existing_OnHand_with_ETag')?['statusCode'], 429),
+  greaterOrEquals(outputs('Update_Existing_OnHand_with_ETag')?['statusCode'], 500)
+)
+```
 
-**If Yes (Conflict - Last Writer Wins):**
+**If Yes (Retry Needed - 412/429/5xx):**
+(Ensure this condition/action group is configured to run after the HTTP action has Failed.)
 - Add a **"Delay"** action: 2 seconds
 - Add **"Get items - SharePoint"** to fetch latest values
 - Recalculate and update with new quantity
 - Consider logging conflict for audit
 
 **If No (Other Error):**
-- Add **"Terminate"** action with Status: Failed and Message: `@{body('Update_Existing_On-Hand_with_ETag')}`
+- Add **"Terminate"** action with Status: Failed and Message: `@{string(outputs('Update_Existing_OnHand_with_ETag'))}`
 
 ### Step 9: Configure NO Branch (Create New)
 
 In the **No** branch, add **"Create item - SharePoint"** action:
 
-**Action Name:** "Create New On-Hand"
+**Action Name:** "Create_New_OnHand"
+
+**Note:** Rename this action to exactly "Create_New_OnHand" to match any expressions that reference it.
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Fields:
+  - Title: `@{concat(variables('vPart'), '-', variables('vBatch'), '-', variables('vUOM'), if(greater(length(variables('vLoc')), 0), concat('-', variables('vLoc')), ''))}`
   - PartNumber: `@{variables('vPart')}`
   - Batch: `@{variables('vBatch')}`
   - UOM: `@{variables('vUOM')}`
   - Location: `@{if(greater(length(variables('vLoc')), 0), variables('vLoc'), null)}`
-  - OnHandQty: `@{variables('vQty')}`
+  - OnHandQty: `@{round(float(variables('vQty')), 2)}`
   - LastMovementAt: `utcNow()`
   - LastMovementType: `Receive`
   - LastMovementRefId: `@{variables('vId')}`
@@ -278,7 +295,7 @@ Add **"Update item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
@@ -320,20 +337,19 @@ Add **"Condition"** to check if update was attempted:
 
 Add **"Create item - SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
-  - FlowName: `TT - Receive → OnHand Upsert`
+  - Title: `TT - Receive → OnHand Upsert`
+  - ItemID: `@{variables('vId')}`
   - ErrorMessage: `@{string(result('Transaction_-_Receive_Processing'))}`
-  - RecordId: `@{variables('vId')}`
-  - Severity: `Critical`
   - Timestamp: `utcNow()`
 
 ##### Update Transaction with Error
 
 Add **"Update item - SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
@@ -345,7 +361,7 @@ Add **"Update item - SharePoint"** action:
 
 Add **"Send an email (V2)"** action:
 
-- To: `@{parameters('AdminEmail')}`
+- To: `@{environment('AdminEmail')}`
 - Subject: `ERROR: Receive Processing Failed`
 - Body: Include transaction details and error message
 
@@ -417,31 +433,34 @@ Add **"Compose"** action at the end:
    - Test with decimal quantities
 
 4. **Performance issues**
-   - Ensure columns are indexed (PartNumber, Batch)
+   - Ensure columns are indexed (PartNumber, Batch, UOM, Location)
    - Use Top Count: 1 on Get items
    - Consider adding delays if necessary
 
 ## Expression Reference
 
-### Add Quantities
+### Add Quantities with 2-Decimal Rounding
 
 ```powerautomate
-add(
-  float(first(body('Get_On-Hand_for_Part+Batch')?['value'])?['OnHandQty']),
-  float(variables('vQty'))
+round(
+  add(
+    float(first(body('Get_OnHand_for_Part_Batch')?['value'])?['OnHandQty']),
+    float(variables('vQty'))
+  ),
+  2
 )
 ```
 
 ### Get First Item ID
 
 ```powerautomate
-first(body('Get_On-Hand_for_Part+Batch')?['value'])?['ID']
+first(body('Get_OnHand_for_Part_Batch')?['value'])?['ID']
 ```
 
 ### Check Empty Results
 
 ```powerautomate
-@greater(length(body('Get_On-Hand_for_Part+Batch')?['value']), 0)
+@greater(length(body('Get_OnHand_for_Part_Batch')?['value']), 0)
 ```
 
 ## Next Steps

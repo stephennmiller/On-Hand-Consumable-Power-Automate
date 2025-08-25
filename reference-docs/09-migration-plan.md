@@ -643,7 +643,7 @@ Step 1: Create cutover checkpoint
   State: "CutoverStarted"
   
 Step 2: Disable current flow
-  Flow ID: @{parameters('CurrentFlowId')}
+  Flow ID: @{environment('CurrentFlowId')}
   Action: Turn off
   
 Step 3: Wait for drain
@@ -651,7 +651,7 @@ Step 3: Wait for drain
   Monitor for any new executions
   
 Step 4: Enable optimized flow as primary
-  Flow ID: @{parameters('OptimizedFlowId')}
+  Flow ID: @{environment('OptimizedFlowId')}
   Update trigger to production schedule
   
 Step 5: Verify first run

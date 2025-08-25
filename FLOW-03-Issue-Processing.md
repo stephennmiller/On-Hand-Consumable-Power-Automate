@@ -1,12 +1,12 @@
-# Flow 3: Post ISSUES to On-Hand
+# Flow 3: Post ISSUES and RETURNED to On-Hand
 
 ## Purpose
 
-Processes validated ISSUE transactions to remove inventory from the On-Hand Material list. Includes stock availability checking and prevents negative inventory.
+Processes validated ISSUE and RETURNED transactions to remove inventory from the On-Hand Material list. Includes stock availability checking and prevents negative inventory.
 
 ## Flow Configuration
 
-**Flow Name:** `TT - Issue → OnHand Upsert`
+**Flow Name:** `TT - Issue/Returned → OnHand Decrement`
 
 **Trigger:** When an item is created or modified  
 **List:** Tech Transactions
@@ -15,8 +15,16 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 
 ```powerautomate
 @and(
-  equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
-  equals(toUpper(triggerOutputs()?['body/TransactionType']), 'ISSUE')
+  or(
+    equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
+    equals(trim(coalesce(triggerOutputs()?['body/PostStatus']?['Value'], '')), 'Validated')
+  ),
+  or(
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'ISSUE'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RETURNED'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'RETURNED')
+  )
 )
 ```
 
@@ -31,7 +39,7 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 3. Name: `TT - Issue → OnHand Upsert`
 4. Choose trigger: **"When an item is created or modified - SharePoint"**
 5. Configure:
-   - Site Address: `@{parameters('SharePointSiteUrl')}`
+   - Site Address: `@{environment('SharePointSiteUrl')}`
    - List Name: Tech Transactions
 6. **Advanced Options:**
    - Limit Columns by View: Yes (performance optimization)
@@ -45,8 +53,16 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 
 ```powerautomate
 @and(
-  equals(triggerOutputs()?['body/PostStatus'], 'Validated'),
-  equals(toUpper(triggerOutputs()?['body/TransactionType']), 'ISSUE')
+  or(
+    equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
+    equals(trim(coalesce(triggerOutputs()?['body/PostStatus']?['Value'], '')), 'Validated')
+  ),
+  or(
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'ISSUE'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RETURNED'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'RETURNED')
+  )
 )
 ```
 
@@ -55,6 +71,8 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 ### Step 3: Add Atomic Transaction Scope
 
 Add **"Scope"** action named **"Atomic Transaction - Issue Processing"**
+
+**Note:** The internal name will be "Atomic_Transaction_-_Issue_Processing" which is referenced in error handling expressions.
 
 All subsequent steps (except final error handling) go inside this scope.
 
@@ -122,6 +140,12 @@ Inside the Atomic Transaction scope, add 10 **"Initialize variable"** actions:
 - **Type:** Boolean
 - **Value:** `false` (tracks if inventory was modified)
 
+#### Variable 11: RetryCount
+
+- **Name:** RetryCount
+- **Type:** Integer
+- **Value:** `0` (for ETag lock retry logic)
+
 ### Step 5: Add Throttle Protection
 
 Add **"Delay"** action:
@@ -133,11 +157,13 @@ Add **"Delay"** action:
 
 Add **"Get items - SharePoint"** action:
 
-**Action Name:** "Get On-Hand for Part+Batch with Lock"
+**Action Name:** "Get_OnHand_for_Part_Batch_with_Lock"
+
+**Note:** Power Automate generates internal action names from what you type. To ensure expressions work correctly, rename this action to exactly "Get_OnHand_for_Part_Batch_with_Lock" (with underscores, not spaces or special characters) in the action's settings.
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: On-Hand Material
 - Filter Query:
 
@@ -152,6 +178,7 @@ Add **"Get items - SharePoint"** action:
 ```
 
 - Top Count: 1
+- **Order By:** `Modified desc`
 - **Select Query:** `ID,OnHandQty,PartNumber,Batch,UOM,Location,Title`
 - **Settings:**
   - Retry Policy: Fixed Interval
@@ -170,13 +197,13 @@ Add **"Condition"** action:
 - Paste:
 
 ```powerautomate
-@greater(length(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value']), 0)
+@greater(length(body('Get_OnHand_for_Part_Batch_with_Lock')?['value']), 0)
 ```
 
 **If No:**
 
 - Add **"Update item - SharePoint"** action
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
@@ -191,7 +218,7 @@ Add **"Condition"** action:
 Add **"Set variable"** action in the YES branch:
 
 - Name: vOriginalQty
-- Value: `float(first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['OnHandQty'])`
+- Value: `float(first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['OnHandQty'])`
 
 ### Step 9: Capture ETag and Original Data
 
@@ -201,14 +228,20 @@ Add **"Compose"** action:
 
 **Inputs:**
 ```powerautomate
-@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['@odata.etag']}
+@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['@odata.etag']}
 ```
+
+Add **"Initialize variable"** action:
+
+**Name:** vETag
+**Type:** String
+**Value:** `@{outputs('Capture_ETag')}`
 
 Add **"Initialize variable"** action:
 
 **Name:** vOriginalTitle
 **Type:** String
-**Value:** `@{coalesce(first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['Title'], '')}`
+**Value:** `@{coalesce(first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['Title'], '')}`
 
 Add **"Initialize variable"** action:
 
@@ -216,19 +249,33 @@ Add **"Initialize variable"** action:
 **Type:** Boolean
 **Value:** `false`
 
-### Step 10: Attempt Optimistic Lock with ETag
+### Step 10: Attempt Optimistic Lock with ETag (Bounded Retries)
+
+Add **"Do Until"** loop for lock acquisition:
+
+**Settings:**
+- Count: 3
+- Timeout: PT1M
+
+**Condition:** `@or(equals(variables('vLockAcquired'), true), greater(variables('RetryCount'), 2))`
+
+Inside each iteration of the loop:
+
+#### 10a. Send Lock Request
 
 Add **"Send an HTTP request to SharePoint"** action:
 
-**Action Name:** "Lock On-Hand with ETag"
+**Action Name:** "Lock_OnHand_with_ETag_Attempt"
+
+**Note:** Rename this action to exactly "Lock_OnHand_with_ETag_Attempt" to match expressions below.
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - Method: POST
-- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']})`
+- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
-  - IF-MATCH: `@{outputs('Capture_ETag')}`
+  - IF-MATCH: `@{variables('vETag')}`
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
 - Body:
@@ -245,19 +292,49 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Retry Policy: None
 - Configure run after: Continue if succeeded OR failed
 
-### Step 10a: Check Lock Success
+#### 10b. Check Lock Success
 
-Add **"Set variable"** action:
+Add **"Compose"** action:
 
-**Name:** vLockAcquired
-**Value:** `@{if(equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 204), true, false)}`
+**Action Name:** "Lock_Status_Code"
 
-Add **"Condition"** action:
+**Inputs:** `@{outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode']}`
+
+Add **"Set variable"** - vLockAcquired:
+- Value: `@{equals(outputs('Lock_Status_Code'), 204)}`
+
+#### 10c. Check if Retry Needed
+
+Add **"Condition"** - Check if retry needed:
+
+**Condition:**
+```powerautomate
+@and(
+  equals(variables('vLockAcquired'), false),
+  or(
+    equals(outputs('Lock_Status_Code'), 412),
+    equals(outputs('Lock_Status_Code'), 429),
+    greaterOrEquals(outputs('Lock_Status_Code'), 500)
+  )
+)
+```
+
+**If Yes (Retry needed):**
+1. **Delay** action: PT2S (2 seconds)
+2. **Get items - SharePoint** (Re-fetch for new ETag):
+   - Same configuration as Step 6
+   - Action Name: "Get_OnHand_for_Part_Batch_with_Lock_Retry"
+3. **Set variable** - vETag:
+   - Value: `@{first(body('Get_OnHand_for_Part_Batch_with_Lock_Retry')?['value'])?['@odata.etag']}`
+4. **Increment variable** - RetryCount:
+   - Value: 1
+
+After the loop:
 
 **Condition:** `@equals(variables('vLockAcquired'), false)`
 
-**If Yes (Lock Failed):**
-- Add **"Terminate"** action with Status: Failed and Message: "Could not acquire lock - concurrent modification detected"
+**If Yes (Lock Failed after retries):**
+- Add **"Terminate"** action with Status: Failed and Message: "Could not acquire lock after 3 attempts - concurrent modification detected"
 
 ### Step 11: Compute New Quantity
 
@@ -294,15 +371,23 @@ Add **"Condition"** action:
 
 **If Yes:**
 
+Add **"Get item - SharePoint"** action to refresh ETag:
+
+**Action Name:** "Get_Current_ETag_For_Unlock"
+
+- Site Address: `@{environment('SharePointSiteUrl')}`
+- List Name: On-Hand Material
+- Id: `@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']}`
+
 Add **"Send an HTTP request to SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - Method: POST
-- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']})`
+- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: `*`
+  - IF-MATCH: `@{body('Get_Current_ETag_For_Unlock')?['@odata.etag']}`
 - Body:
 ```json
 {
@@ -316,36 +401,43 @@ Add **"Send an HTTP request to SharePoint"** action:
 #### Then Update Transaction
 
 - Add **"Update item - SharePoint"** action
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
   - PostStatus: `Error`
   - PostMessage:
-
 ```powerautomate
-    Insufficient inventory. Available: @{variables('vOriginalQty')}, Requested: @{variables('vQty')}
-    ```
+Insufficient inventory. Available: @{round(variables('vOriginalQty'), 2)}, Requested: @{round(variables('vQty'), 2)}
+```
+- PostedAt: `utcNow()`
 
-  - PostedAt: `utcNow()`
-- Add **"Terminate"** action
-  - Status: Succeeded
+Add **"Terminate"** action:
+- Status: Succeeded
 
 ### Step 13: Update On-Hand with Unlock (In YES Branch)
 
+Add **"Get item - SharePoint"** action to refresh ETag:
+
+**Action Name:** "Get_Current_ETag_For_Update"
+
+- Site Address: `@{environment('SharePointSiteUrl')}`
+- List Name: On-Hand Material
+- Id: `@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']}`
+
 Add **"Send an HTTP request to SharePoint"** action:
 
-**Action Name:** "Update On-Hand Qty and Release Lock"
+**Action Name:** "Update_OnHand_Qty_and_Release_Lock"
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - Method: POST
-- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']})`
+- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: `*`
+  - IF-MATCH: `@{body('Get_Current_ETag_For_Update')?['@odata.etag']}`
 - Body:
 ```json
 {
@@ -381,12 +473,12 @@ Add **"Update item - SharePoint"** action:
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
   - PostStatus: `Posted`
-  - PostMessage: `Successfully issued from inventory. Remaining: @{outputs('Compute_New_Qty')}`
+  - PostMessage: `Successfully issued from inventory. Remaining: @{round(outputs('Compute_New_Qty'), 2)}`
   - PostedAt: `utcNow()`
 - **Settings:**
   - Retry Policy: Fixed Interval
@@ -424,21 +516,41 @@ Add **"Condition"** action:
 
 ##### Rollback Inventory Update
 
-Add **"Update item - SharePoint"** action:
+First, get the current ETag for rollback:
 
-**Action Name:** "Rollback On-Hand to Original"
+Add **"Get item - SharePoint"** action:
+**Action Name:** "Get_ETag_For_Rollback"
+- Site Address: `@{environment('SharePointSiteUrl')}`
+- List Name: On-Hand Material
+- Id: `@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']}`
+
+Then, add **"Send an HTTP request to SharePoint"** action:
+
+**Action Name:** "Rollback_OnHand_to_Original"
 
 **Configure:**
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
-- List Name: On-Hand Material
-- Id: `first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['ID']`
-- Fields:
-  - Title: `@{variables('vOriginalTitle')}`
-  - OnHandQty: `@{variables('vOriginalQty')}`
-  - LastMovementAt: `utcNow()`
-  - LastMovementType: `Rollback-Issue`
-  - LastMovementRefId: `ROLLBACK-@{variables('vId')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
+- Method: POST
+- Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']})`
+- Headers:
+  - IF-MATCH: `@{body('Get_ETag_For_Rollback')?['@odata.etag']}`
+  - X-HTTP-Method: MERGE
+  - Content-Type: application/json;odata=verbose
+- Body:
+```json
+{
+  "__metadata": {
+    "type": "SP.Data.On_x002d_Hand_x0020_MaterialListItem"
+  },
+  "Title": "@{variables('vOriginalTitle')}",
+  "OnHandQty": @{variables('vOriginalQty')},
+  "IsActive": @{if(greater(variables('vOriginalQty'), 0), true, false)},
+  "LastMovementAt": "@{utcNow()}",
+  "LastMovementType": "Rollback-Issue",
+  "LastMovementRefId": "ROLLBACK-@{variables('vId')}"
+}
+```
 - **Settings:**
   - Retry Policy: Exponential
   - Count: 5 (critical to succeed)
@@ -448,12 +560,12 @@ Add **"Update item - SharePoint"** action:
 
 Add **"Create item - SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
-  - FlowName: `TT - Issue → OnHand Upsert`
+  - Title: `TT - Issue → OnHand Upsert`
+  - ItemID: `@{variables('vId')}`
   - ErrorMessage: `Rollback executed for transaction @{variables('vId')}`
-  - Severity: `Critical`
   - Timestamp: `utcNow()`
 
 #### Step 16b: Always Execute - Error Logging (Outside the condition)
@@ -462,20 +574,19 @@ Add **"Create item - SharePoint"** action:
 
 Add **"Create item - SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Flow Error Log
 - Fields:
-  - FlowName: `TT - Issue → OnHand Upsert`
+  - Title: `TT - Issue → OnHand Upsert`
+  - ItemID: `@{variables('vId')}`
   - ErrorMessage: `@{string(result('Atomic_Transaction_-_Issue_Processing'))}`
-  - RecordId: `@{variables('vId')}`
-  - Severity: `Critical`
   - Timestamp: `utcNow()`
 
 ##### Update Transaction with Error
 
 Add **"Update item - SharePoint"** action:
 
-- Site Address: `@{parameters('SharePointSiteUrl')}`
+- Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: Tech Transactions
 - Id: `@{variables('vId')}`
 - Fields:
@@ -487,7 +598,7 @@ Add **"Update item - SharePoint"** action:
 
 Add **"Send an email (V2)"** action:
 
-- To: `@{parameters('AdminEmail')}`
+- To: `@{environment('AdminEmail')}`
 - Subject: `CRITICAL: Issue Processing Failed - Rollback @{if(variables('vUpdateCompleted'), 'Executed', 'N/A')}`
 - Body:
 
@@ -546,7 +657,7 @@ Immediate investigation required.
 
 ### Option 1: Allow Negative Inventory
 
-To allow negative inventory (backorders), remove or modify Step 7:
+To allow negative inventory (backorders), remove or modify Step 12 (Check Sufficient Stock):
 
 - Remove the sufficient stock check entirely, OR
 - Change condition to check for a minimum threshold (e.g., -100)
@@ -575,7 +686,7 @@ This maintains a safety stock of 10 units.
 1. **Flow not triggering**
    - Verify PostStatus = "Validated" exactly (check Choice column values)
    - Check TransactionType = "Issue" (case insensitive due to toUpper)
-   - Ensure trigger condition syntax: `@and(equals(triggerOutputs()?['body/PostStatus'], 'Validated'), equals(toUpper(triggerOutputs()?['body/TransactionType']), 'ISSUE'))`
+   - Ensure trigger condition syntax: `@and(equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'), equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'))`
 
 2. **Stock calculations wrong**
    - Verify float conversion: `float(variables('vQty'))`
@@ -588,9 +699,16 @@ This maintains a safety stock of 10 units.
    - Verify IsActive = true in filter query
 
 4. **ETag/Lock errors**
-   - Ensure using correct ETag capture: `@{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['@odata.etag']}`
-   - Check Lock status code: `equals(outputs('Lock_On-Hand_with_ETag')?['statusCode'], 204)`
+   - Ensure using correct ETag capture from body not outputs: `@{body('Get_Current_ETag_For_Update')?['@odata.etag']}`
+   - Verify Do Until loop with proper retry logic for 412/429/5xx errors
+   - Check Lock status code: `equals(outputs('Lock_Status_Code'), 204)`
    - Verify metadata type matches your list: `SP.Data.On_x002d_Hand_x0020_MaterialListItem`
+
+5. **Performance issues**
+   - Ensure columns are indexed (PartNumber, Batch, UOM, Location)
+   - Use Top Count: 1 on Get items
+   - Set trigger concurrency to 1 to prevent race conditions
+   - Add throttle delays between operations
 
 ## Expression Reference
 
@@ -598,7 +716,7 @@ This maintains a safety stock of 10 units.
 
 ```powerautomate
 @sub(
-  float(first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['OnHandQty']),
+  float(variables('vOriginalQty')),
   float(variables('vQty'))
 )
 ```
@@ -606,13 +724,13 @@ This maintains a safety stock of 10 units.
 ### Conditional IsActive
 
 ```powerautomate
-@if(greater(outputs('Compute_New_Qty'), 0), true, false)
+@{if(greater(outputs('Compute_New_Qty'), 0), true, false)}
 ```
 
-### Format Error Message
+### Format Error Message with Locale-Safe Numbers
 
 ```powerautomate
-Insufficient inventory. Available: @{first(body('Get_On-Hand_for_Part+Batch_with_Lock')?['value'])?['OnHandQty']}, Requested: @{variables('vQty')}
+Insufficient inventory. Available: @{round(variables('vOriginalQty'), 2)}, Requested: @{round(variables('vQty'), 2)}
 ```
 
 ## Next Steps

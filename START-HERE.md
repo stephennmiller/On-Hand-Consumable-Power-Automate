@@ -10,36 +10,61 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 
 - [ ] Access to SharePoint site
 - [ ] Power Automate license
-- [ ] Create these SharePoint lists with exact column names and types:
+- [ ] Set up Dataverse environment variables:
+  - **SharePointSiteUrl**: Your SharePoint site URL
+    - Usage in flows: `environment('SharePointSiteUrl')`
+  - **AdminEmail**: Email address for critical alerts
+    - Usage in flows: `environment('AdminEmail')`
+- [ ] Create these SharePoint lists with exact column names and types (create master lists first):
+
+#### Master Lists (Create These First)
+
+##### Parts Master List
+
+| Column Name | Type | Settings |
+|-------------|------|----------|
+| Title | Single line of text | Default column (can be used for display name) |
+| PartNumber | Single line of text | Required, Indexed, Enforce unique values |
+| PartDescription | Single line of text | Required |
+| DefaultUOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc. (Required) |
+| Category | Choice | Optional (e.g., Electronics, Hardware, Consumables) |
+| MinStockLevel | Number | Optional, Default: 0 |
+| MaxStockLevel | Number | Optional |
+| IsActive | Yes/No | Required, Default: Yes |
 
 #### Tech Transactions List
 
 | Column Name | Type | Settings |
 |-------------|------|----------|
 | Title | Single line of text | Default column |
-| TechName | Single line of text | Required |
-| TransactionType | Choice | Choices: RECEIVE, ISSUE (Required) |
-| PartNumber | Single line of text | Required |
-| PartDescription | Single line of text | Optional |
+| TechName | Person or Group | Required, Allow single selection |
+| TransactionType | Choice | Choices: RECEIVE, ISSUE, RETURNED (Required) |
+| Part | Lookup | Required, Allow single selection, Source: Parts Master, Show: PartNumber, Additional fields: PartDescription, DefaultUOM |
 | Batch | Single line of text | Required |
-| Bin | Single line of text | Optional |
-| Quantity | Number | Required, Min: 0.01 |
+| UOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc. (Optional, defaults from Part) |
+| PO | Lookup | Optional (Required for ISSUE/RETURNED), Allow single selection, Source: PO List, Show: PONumber |
+| Qty | Number | Required, Min: 0.01, Decimal places: 2 |
 | PostStatus | Choice | Choices: New, Validated, Processing, Posted, Error (Default: New) |
 | ProcessingLock | Single line of text | Optional (for concurrency) |
-| ErrorMessage | Multiple lines of text | Optional |
+| PostMessage | Multiple lines of text | Optional (status messages) |
+| ErrorMessage | Multiple lines of text | Optional (legacy/compatibility) |
 
 #### On-Hand Material List
 
 | Column Name | Type | Settings |
 |-------------|------|----------|
 | Title | Single line of text | Default column |
-| PartNumber | Single line of text | Required |
-| PartDescription | Single line of text | Optional |
-| Batch | Single line of text | Required |
-| TotalQuantity | Number | Required, Default: 0 |
-| LastTransactionID | Single line of text | Optional |
-| LastUpdated | Date and Time | Optional |
+| Part | Lookup | Required, Allow single selection, Source: Parts Master, Show: PartNumber, Additional fields: PartDescription |
+| Batch | Single line of text | Required, Indexed |
+| UOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc. (Required) |
+| OnHandQty | Number | Required, Default: 0 |
+| IsActive | Yes/No | Required, Default: Yes |
+| LastMovementAt | Date and Time | Optional |
+| LastMovementType | Single line of text | Optional |
+| LastMovementRefId | Single line of text | Optional |
 | ProcessingLock | Single line of text | Optional (for concurrency) |
+
+**Performance Note**: Consider adding a computed column `Key` with formula `=[Part:PartNumber]&"|"&[Batch]&"|"&[UOM]` and indexing it for faster lookups. This creates a unique composite key for each inventory record.
 
 #### Flow Error Log List
 
@@ -50,6 +75,24 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | FlowRunURL | Hyperlink | Optional |
 | ItemID | Single line of text | Optional |
 | Timestamp | Date and Time | Required |
+
+#### PO List (Required for ISSUE validation)
+
+| Column Name | Type | Settings |
+|-------------|------|----------|
+| Title | Single line of text | Default column |
+| PONumber | Single line of text | Required, Indexed, Enforce unique values |
+| OrderDate | Date and Time | Optional |
+| Status | Single line of text | Optional |
+| IsOpen | Yes/No | Required, Default: Yes |
+
+### Important Notes on Lookup Columns in Power Automate
+
+When using lookup columns in Power Automate flows:
+- To get the lookup ID: `triggerBody()?['Part']?['Id']` or `triggerBody()?['PartId']?['Value']`
+- To get the lookup value (PartNumber): `triggerBody()?['Part']?['Value']` or `triggerBody()?['Part_x003a_PartNumber']?['Value']`
+- To get additional fields (PartDescription): `triggerBody()?['Part_x003a_PartDescription']?['Value']`
+- For filtering by lookup: Use `Part/Id eq <id>` or `Part/PartNumber eq '<value>'` with `$expand=Part`
 
 ### Phase 1: Core System (Build These First)
 
@@ -95,9 +138,13 @@ After building Phase 1, test with this sequence:
 
 ### Basic Functionality Tests
 
-1. Create a RECEIVE for Part "ABC123", Batch "B001" (batch number), Qty 100
+**Prerequisites**:
+- Create a part in Parts Master (PartNumber: "ABC123", Description: "Test Part", DefaultUOM: "EA")
+- Create a PO in PO List (PONumber: "PO001", IsOpen: Yes)
+
+1. Create a RECEIVE for Part "ABC123", Batch "B001", Qty 100
 2. Verify On-Hand Material shows 100 units
-3. Create an Issue for same part/batch, Qty 30
+3. Create an ISSUE for same part/batch, PO "PO001", Qty 30
 4. Verify On-Hand Material shows 70 units
 5. Check Flow Error Log is empty
 
@@ -120,14 +167,19 @@ After building Phase 1, test with this sequence:
    - Verify validation catches error
    - Check appropriate error logged
 
+5. **Test RETURNED Transaction**: Create RETURNED for Part "ABC123", Batch "B001", PO "PO001", Qty 10
+   - Verify On-Hand Material decreases by 10 units (should show 60 if following from test #3)
+   - Confirm transaction posts successfully
+   - Check that RETURNED behaves like ISSUE (decrements inventory)
+
 ## Common Issues & Fixes
 
 | Problem | Solution |
 |---------|----------|
-| "Flow not triggering" | Verify trigger condition: `@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')` |
+| "Flow not triggering" | Verify trigger condition (use the one that matches your trigger output shape):<br/>`@equals(triggerOutputs()?['body/PostStatus'], 'Validated')`<br/>or (if PostStatus is an object):<br/>`@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')` |
 | "PostStatus not updating" | Check exact column name spelling and that it's a Choice column with correct values |
-| "Duplicate inventory rows" | Fix OData filter: `PartNumber eq '@{variables('PartNumber')}' and Batch eq '@{variables('Batch')}'` |
-| "Negative inventory allowed" | Add condition in FLOW-03 Step 12: `greater(variables('CurrentQuantity'), variables('TransactionQuantity'))` |
+| "Duplicate inventory rows" | Fix OData filter: `Part/PartNumber eq '@{variables('PartNumber')}' and Batch eq '@{variables('Batch')}'` (use $expand=Part) |
+| "Negative inventory allowed" | Add condition in FLOW-03 Step 12: `greaterOrEquals(outputs('Compute_New_Qty'), 0)` to allow exact depletion |
 | "ETag mismatch errors" | Ensure using `outputs('Get_inventory_record')?['body/@odata.etag']` in Update item |
 
 ## File Organization
