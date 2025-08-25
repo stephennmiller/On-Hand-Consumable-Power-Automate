@@ -68,7 +68,7 @@ Located in `reference-docs/`:
 ### SharePoint Column Names (Exact Names Required)
 
 The flows use these specific column names:
-- Tech Transactions: `Part` (lookup), `Qty`, `Batch`, `UOM`, `PO` (lookup)
+- Tech Transactions: `Part` (lookup), `Description` (text), `Qty`, `Batch`, `UOM`, `PO` (lookup)
 - On-Hand Material: `Part` (lookup), `OnHandQty`, `Batch`, `UOM`
 - Additional columns: `IsActive`, `LastMovementAt`, `LastMovementType`, `LastMovementRefId`
 - Parts Master: `PartNumber`, `PartDescription`, `DefaultUOM`

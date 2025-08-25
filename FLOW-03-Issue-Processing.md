@@ -265,13 +265,11 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - If-Match: `@{variables('vETag')}`
   - X-HTTP-Method: MERGE
-  - Content-Type: application/json;odata=verbose
+  - Accept: application/json;odata=nometadata
+  - Content-Type: application/json;odata=nometadata
 - Body:
 ```json
 {
-  "__metadata": {
-    "type": "SP.Data.On_x002d_HandMaterialListItem"
-  },
   "Title": "LOCKED-@{variables('vFlowRunId')}-@{utcNow('yyyyMMddHHmmss')}"
 }
 ```
@@ -374,14 +372,12 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
   - X-HTTP-Method: MERGE
-  - Content-Type: application/json;odata=verbose
+  - Accept: application/json;odata=nometadata
+  - Content-Type: application/json;odata=nometadata
   - If-Match: `@{body('Get_Current_ETag_For_Unlock')?['@odata.etag']}`
 - Body:
 ```json
 {
-  "__metadata": {
-    "type": "SP.Data.On_x002d_HandMaterialListItem"
-  },
   "Title": "@{variables('vOriginalTitle')}"
 }
 ```
@@ -424,14 +420,12 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
   - X-HTTP-Method: MERGE
-  - Content-Type: application/json;odata=verbose
+  - Accept: application/json;odata=nometadata
+  - Content-Type: application/json;odata=nometadata
   - If-Match: `@{body('Get_Current_ETag_For_Update')?['@odata.etag']}`
 - Body:
 ```json
 {
-  "__metadata": {
-    "type": "SP.Data.On_x002d_HandMaterialListItem"
-  },
   "Title": "@{variables('vOriginalTitle')}",
   "OnHandQty": @{outputs('Compute_New_Qty')},
   "LastMovementAt": "@{utcNow()}",
@@ -524,13 +518,11 @@ Then, add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - If-Match: `@{body('Get_ETag_For_Rollback')?['@odata.etag']}`
   - X-HTTP-Method: MERGE
-  - Content-Type: application/json;odata=verbose
+  - Accept: application/json;odata=nometadata
+  - Content-Type: application/json;odata=nometadata
 - Body:
 ```json
 {
-  "__metadata": {
-    "type": "SP.Data.On_x002d_HandMaterialListItem"
-  },
   "Title": "@{variables('vOriginalTitle')}",
   "OnHandQty": @{variables('vOriginalQty')},
   "IsActive": @{if(greater(variables('vOriginalQty'), 0), true, false)},
@@ -685,7 +677,7 @@ This maintains a safety stock of 10 units.
    - Ensure using correct ETag capture from body not outputs: `@{body('Get_Current_ETag_For_Update')?['@odata.etag']}`
    - Verify Do Until loop with proper retry logic for 412/429/5xx errors
    - Check Lock status code: `equals(outputs('Lock_Status_Code'), 204)`
-   - Verify metadata type matches your list: `SP.Data.On_x002d_HandMaterialListItem`
+   - If using verbose mode, verify metadata type matches your list internal name\n   - With nometadata mode (recommended), omit __metadata entirely
 
 5. **Performance issues**
    - Ensure columns are indexed (Part, Batch, UOM)
