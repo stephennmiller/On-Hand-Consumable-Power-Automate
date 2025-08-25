@@ -15,8 +15,14 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 
 ```powerautomate
 @and(
-  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
-  equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE')
+  or(
+    equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
+    equals(trim(coalesce(triggerOutputs()?['body/PostStatus']?['Value'], '')), 'Validated')
+  ),
+  or(
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'ISSUE')
+  )
 )
 ```
 
@@ -45,8 +51,14 @@ Processes validated ISSUE transactions to remove inventory from the On-Hand Mate
 
 ```powerautomate
 @and(
-  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
-  equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE')
+  or(
+    equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
+    equals(trim(coalesce(triggerOutputs()?['body/PostStatus']?['Value'], '')), 'Validated')
+  ),
+  or(
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'),
+    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType']?['Value'], ''))), 'ISSUE')
+  )
 )
 ```
 
@@ -278,8 +290,14 @@ Add **"Send an HTTP request to SharePoint"** action:
 
 #### 10b. Check Lock Success
 
+Add **"Compose"** action:
+
+**Action Name:** "Lock_Status_Code"
+
+**Inputs:** `@{outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode']}`
+
 Add **"Set variable"** - vLockAcquired:
-- Value: `@{equals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 204)}`
+- Value: `@{equals(outputs('Lock_Status_Code'), 204)}`
 
 #### 10c. Check if Retry Needed
 
@@ -290,9 +308,9 @@ Add **"Condition"** - Check if retry needed:
 @and(
   equals(variables('vLockAcquired'), false),
   or(
-    equals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 412),
-    equals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 429),
-    greaterOrEquals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 500)
+    equals(outputs('Lock_Status_Code'), 412),
+    equals(outputs('Lock_Status_Code'), 429),
+    greaterOrEquals(outputs('Lock_Status_Code'), 500)
   )
 )
 ```
@@ -679,7 +697,7 @@ This maintains a safety stock of 10 units.
 4. **ETag/Lock errors**
    - Ensure using correct ETag capture from body not outputs: `@{body('Get_Current_ETag_For_Update')?['@odata.etag']}`
    - Verify Do Until loop with proper retry logic for 412/429/5xx errors
-   - Check Lock status code: `equals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 204)`
+   - Check Lock status code: `equals(outputs('Lock_Status_Code'), 204)`
    - Verify metadata type matches your list: `SP.Data.On_x002d_Hand_x0020_MaterialListItem`
 
 5. **Performance issues**

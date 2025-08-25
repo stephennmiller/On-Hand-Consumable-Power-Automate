@@ -22,7 +22,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | Column Name | Type | Settings |
 |-------------|------|----------|
 | Title | Single line of text | Default column |
-| TechName | Single line of text | Required |
+| TechName | Person or Group | Required, Allow single selection |
 | TransactionType | Choice | Choices: RECEIVE, ISSUE (Required) |
 | PartNumber | Single line of text | Required |
 | PartDescription | Single line of text | Optional |
@@ -33,7 +33,8 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | Qty | Number | Required, Min: 0.01, Decimal places: 2 |
 | PostStatus | Choice | Choices: New, Validated, Processing, Posted, Error (Default: New) |
 | ProcessingLock | Single line of text | Optional (for concurrency) |
-| ErrorMessage | Multiple lines of text | Optional |
+| PostMessage | Multiple lines of text | Optional (status messages) |
+| ErrorMessage | Multiple lines of text | Optional (legacy/compatibility) |
 
 #### On-Hand Material List
 
