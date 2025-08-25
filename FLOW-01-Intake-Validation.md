@@ -45,7 +45,7 @@ All subsequent steps (except error handling) go inside this scope.
 
 ### Step 3: Initialize Variables
 
-Inside the Try scope, add 7 **"Initialize variable"** actions:
+Inside the Try scope, add 8 **"Initialize variable"** actions:
 
 #### Variable 1: vType
 
@@ -146,6 +146,7 @@ Part/Id eq @{variables('vPartId')} and Batch eq '@{replace(variables('vBatch'),'
 - Top Count: 1
 - **Select Query:** `ID,Part,Batch,UOM,Qty,Created`
 - **Expand Query:** `Part`
+- **Order By:** `Created desc`
 
 **Add Condition:** "Is Duplicate?"
 

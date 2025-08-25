@@ -71,7 +71,7 @@ All subsequent steps (except final error handling) go inside this scope.
 
 ### Step 4: Initialize Variables
 
-Inside the Atomic Transaction scope, add 10 **"Initialize variable"** actions:
+Inside the Atomic Transaction scope, add 11 **"Initialize variable"** actions:
 
 #### Variable 1: vPartNumber
 
@@ -197,7 +197,7 @@ Add **"Condition"** action:
 - Id: `@{variables('vId')}`
 - Fields:
   - PostStatus: `Error`
-  - PostMessage: `No inventory found for Part: @{variables('vPartNumber')}, Batch: @{variables('vBatch')}`
+  - PostMessage: `No inventory found for Part: @{variables('vPartNumber')}, Batch: @{variables('vBatch')}, UOM: @{variables('vUOM')}`
   - PostedAt: `utcNow()`
 - Add **"Terminate"** action
   - Status: Succeeded
@@ -635,12 +635,7 @@ Immediate investigation required.
 - [ ] Verify PostStatus = "Error"
 - [ ] Check error message indicates no inventory
 
-### Test Case 5: Multiple Locations
-
-- [ ] If using locations:
-  - Issue from specific location
-  - Verify only that location's stock affected
-  - Other locations remain unchanged
+<!-- Test Case 5: Multiple Locations - Removed as Location is no longer part of the On-Hand model -->
 
 ## Configuration Options
 
@@ -683,8 +678,8 @@ This maintains a safety stock of 10 units.
    - Test with decimal quantities (e.g., 10.5)
 
 3. **Can't find inventory**
-   - Ensure exact matches using trim(): `trim(coalesce(triggerBody()?['Part']?['Value'], ''))`
-   - Escape single quotes in filter: `replace(variables('vPartNumber'),'''','''''')`
+   - Ensure exact matches using numeric Id: `int(coalesce(triggerBody()?['Part']?['Id'],0))`
+   - Escape single quotes where applicable: `replace(variables('vBatch'),'''','''''')` and `replace(variables('vUOM'),'''','''''')`
    - Verify IsActive = true in filter query
 
 4. **ETag/Lock errors**

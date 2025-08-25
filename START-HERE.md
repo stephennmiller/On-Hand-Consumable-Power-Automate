@@ -47,6 +47,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | PostStatus | Choice | Choices: New, Validated, Processing, Posted, Error (Default: New) |
 | PostMessage | Multiple lines of text | Optional (status messages) |
 | ErrorMessage | Multiple lines of text | Optional (legacy/compatibility) |
+| PostedAt | Date and Time | Optional (UTC timestamp when posted) |
 
 #### On-Hand Material List
 
@@ -62,7 +63,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | LastMovementType | Single line of text | Optional |
 | LastMovementRefId | Single line of text | Optional |
 
-**Performance Note**: Consider adding a single line text column `CompositeKey` (indexed) that flows populate with normalized key: `concat(toUpper(trim(coalesce(variables('vPartNumber'), ''))),'|',toUpper(trim(coalesce(variables('vBatch'), ''))),'|',toUpper(trim(coalesce(variables('vUOM'), ''))))`
+**Performance Note**: Consider adding a single line text column `CompositeKey` (indexed) that flows populate with normalized key: `concat(toUpper(trim(coalesce(variables('vPartNumber'), ''))),'|',toUpper(trim(coalesce(variables('vBatch'), ''))),'|',toUpper(trim(coalesce(variables('vUOM'), ''))))`. Always normalize with trim/uppercase before concatenation to avoid duplicate keys from casing/spacing differences. Since UOM is a Choice, it returns a string value (e.g., 'EA') which is perfect for the composite key.
 
 #### Flow Error Log List
 
@@ -87,7 +88,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 ### Important Notes on Lookup Columns in Power Automate
 
 When using lookup columns in Power Automate flows:
-- To get the lookup ID: `triggerBody()?['Part']?['Id']` or `triggerBody()?['PartId']?['Value']`
+- To get the lookup ID: `triggerBody()?['Part']?['Id']` or `int(triggerBody()?['PartId'])`
 - To get the lookup value (PartNumber): `triggerBody()?['Part']?['Value']` or `triggerBody()?['Part_x003a_PartNumber']?['Value']`
 - To get additional fields (PartDescription): `triggerBody()?['Part_x003a_PartDescription']?['Value']`
 - For filtering by lookup: Use `Part/Id eq <id>` or `Part/PartNumber eq '<value>'` with `$expand=Part`

@@ -15,7 +15,7 @@ Create a SharePoint list named **"Parts"** with these columns:
 | PartNumber | Single line of text | Required, Indexed |
 | Description | Single line of text | Optional |
 | MaterialType | Choice/Single line of text | Optional |
-| UOM | Single line of text | Required |
+| UOM | Choice | Required (Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc.) |
 | IsActive | Yes/No | Default: Yes |
 
 ### 2. PO List (Purchase Orders)
@@ -36,12 +36,12 @@ Create a SharePoint list named **"Tech Transactions"** with these columns:
 
 | Column Name | Type | Settings |
 |------------|------|----------|
-| TransactionType | Choice | Choices: Issue, Receive (Required) |
+| TransactionType | Choice | Choices: RECEIVE, ISSUE, RETURNED (Required) |
 | PONumber | Single line of text | Conditionally Required |
 | PartNumber | Single line of text | Required |
 | Batch | Single line of text | Required |
 | Qty | Number | Required, Min: 0 |
-| UOM | Single line of text | Required |
+| UOM | Choice | Required (Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc.) |
 | PostStatus | Single line of text | Hidden from forms, Default: blank |
 | PostMessage | Multiple lines of text | Hidden from forms |
 | PostedAt | Date and Time | Hidden from forms |
@@ -55,7 +55,7 @@ Create a SharePoint list named **"On-Hand Material"** with these columns:
 |------------|------|----------|
 | PartNumber | Single line of text | Required, Indexed |
 | Batch | Single line of text | Required, Indexed |
-| UOM | Single line of text | Required |
+| UOM | Choice | Required (Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc.) |
 | OnHandQty | Number | Default: 0 |
 | LastMovementAt | Date and Time | Optional |
 | LastMovementType | Single line of text | Optional |
@@ -73,7 +73,7 @@ concat(
   toUpper(trim(coalesce(variables('vUOM'), '')))
 )
 ```
-This ensures composite uniqueness for Part+Batch+UOM combinations. All flows MUST populate OHKey when creating/updating On-Hand records.
+**Note**: Always normalize with trim/uppercase before concatenation to avoid duplicate keys from casing/spacing differences. Since UOM is a Choice, it returns a string value (e.g., 'EA') which is perfect for the composite key. This ensures composite uniqueness for Part+Batch+UOM combinations. All flows MUST populate OHKey when creating/updating On-Hand records.
 
 ### 5. Flow Error Log (Monitoring)
 

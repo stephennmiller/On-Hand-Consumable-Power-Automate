@@ -164,6 +164,11 @@ Add **"Update item - SharePoint"** action:
 - Fields to Update:
   - Description: `first(body('Get_Part_from_Master')?['value'])?['PartDescription']`
   - UOM: `@{if(equals(length(coalesce(triggerBody()?['UOM'], '')), 0), first(body('Get_Part_from_Master')?['value'])?['DefaultUOM'], triggerBody()?['UOM'])}`
+- **Settings:**
+  - Retry Policy: Exponential
+  - Count: 3
+  - Interval: PT10S
+  - Maximum Interval: PT1M
 
 ### Step 9: Optional - Log Part Not Found (In NO Branch of Step 7)
 
@@ -203,9 +208,9 @@ Add validation to ensure the entered UOM matches the part's standard UOM:
 
 ```powerautomate
 @if(
-  equals(triggerBody()?['UOM'], first(body('Get_Part_from_Master')?['value'])?['UOM']),
+  equals(triggerBody()?['UOM'], first(body('Get_Part_from_Master')?['value'])?['DefaultUOM']),
   triggerBody()?['UOM'],
-  first(body('Get_Part_from_Master')?['value'])?['UOM']
+  first(body('Get_Part_from_Master')?['value'])?['DefaultUOM']
 )
 ```
 

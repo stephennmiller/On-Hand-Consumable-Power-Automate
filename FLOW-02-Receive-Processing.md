@@ -210,15 +210,13 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Method: POST
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_OnHand_for_Part_Batch')?['value'])?['ID']})`
 - Headers:
-  - IF-MATCH: `@{outputs('Capture_ETag')}`
+  - If-Match: `@{outputs('Capture_ETag')}`
   - X-HTTP-Method: MERGE
-  - Content-Type: application/json;odata=verbose
+  - Accept: application/json;odata=nometadata
+  - Content-Type: application/json;odata=nometadata
 - Body:
 ```json
 {
-  "__metadata": {
-    "type": "SP.Data.On_x002d_HandMaterialListItem"
-  },
   "Title": "@{variables('vOriginalTitle')}",
   "OnHandQty": @{round(add(float(coalesce(first(body('Get_OnHand_for_Part_Batch')?['value'])?['OnHandQty'], 0)), float(variables('vQty'))), 2)},
   "LastMovementAt": "@{utcNow()}",

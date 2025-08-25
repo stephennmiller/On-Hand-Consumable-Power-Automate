@@ -128,7 +128,7 @@ Action setting (Get items): set "Top Count" = `1` (since `PONumber` is unique)
 ### Working with Lookup Columns
 
 - Accessing lookup values in triggers/actions:
-  - Lookup ID: `triggerBody()?['Part']?['Id']` or `triggerBody()?['PartId']?['Value']`
+  - Lookup ID: `triggerBody()?['Part']?['Id']` or `int(triggerBody()?['PartId'])`
   - Lookup primary field: `triggerBody()?['Part']?['Value']`
   - Additional lookup fields: `triggerBody()?['Part_x003a_PartDescription']?['Value']`
 - Filtering by lookups in OData:
@@ -311,7 +311,8 @@ Set Retry Policy to **None** for:
 
 5. **Metadata Type Names**: SharePoint list internal names - e.g., `SP.Data.On_x002d_HandMaterialListItem`
    - Note: SharePoint encodes spaces as `_x0020_` and hyphens as `_x002d_` in the URL, but the metadata type name uses a simplified format
-   - To find the correct type name: Use the SharePoint REST API to get an item and check the `__metadata.type` field
+   - To find the correct type name: Use the SharePoint REST API to get an item and check the `__metadata.type` field (when using verbose) or the `odata.type` field (when using minimalmetadata)
+   - When using `application/json;odata=nometadata`, the request body omits `__metadata`, while `verbose` expects it
 
 6. **Concurrency Issues**: Set trigger concurrency to 1 for ISSUE flows to prevent race conditions
 
