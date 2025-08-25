@@ -135,7 +135,7 @@ Add **"Get items - SharePoint"** action:
   - Interval: PT10S (10 seconds)
   - Maximum Interval: PT1H (1 hour)
 
-### Step 7: Check if Part Found
+### Step 6: Check if Part Found
 
 Add **"Condition"** action:
 
@@ -150,7 +150,7 @@ Add **"Condition"** action:
 @greater(length(body('Get_Part_from_Master')?['value']), 0)
 ```
 
-### Step 8: Update Transaction (In YES Branch)
+### Step 7: Update Transaction (In YES Branch)
 
 Add **"Update item - SharePoint"** action:
 
@@ -170,7 +170,7 @@ Add **"Update item - SharePoint"** action:
   - Interval: PT10S
   - Maximum Interval: PT1M
 
-### Step 9: Optional - Log Part Not Found (In NO Branch of Step 7)
+### Step 8: Optional - Log Part Not Found (In NO Branch of Step 6)
 
 You can optionally add logging or notification:
 

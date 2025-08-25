@@ -40,6 +40,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | TechName | Person or Group | Required, Allow single selection |
 | TransactionType | Choice | Choices: RECEIVE, ISSUE, RETURNED (Required) |
 | Part | Lookup | Required, Allow single selection, Source: Parts Master, Show: PartNumber, Additional fields: PartDescription, DefaultUOM |
+| Description | Single line of text | Optional (auto-populated by Flow-04) |
 | Batch | Single line of text | Required |
 | UOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc. (Optional, defaults from Part) |
 | PO | Lookup | Optional (Required for ISSUE/RETURNED), Allow single selection, Source: PO List, Show: PONumber |

@@ -264,7 +264,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Method: POST
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
-  - IF-MATCH: `@{variables('vETag')}`
+  - If-Match: `@{variables('vETag')}`
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
 - Body:
@@ -376,7 +376,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: `@{body('Get_Current_ETag_For_Unlock')?['@odata.etag']}`
+  - If-Match: `@{body('Get_Current_ETag_For_Unlock')?['@odata.etag']}`
 - Body:
 ```json
 {
@@ -426,7 +426,7 @@ Add **"Send an HTTP request to SharePoint"** action:
 - Headers:
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
-  - IF-MATCH: `@{body('Get_Current_ETag_For_Update')?['@odata.etag']}`
+  - If-Match: `@{body('Get_Current_ETag_For_Update')?['@odata.etag']}`
 - Body:
 ```json
 {
@@ -523,7 +523,7 @@ Then, add **"Send an HTTP request to SharePoint"** action:
 - Method: POST
 - Uri: `_api/web/lists/getbytitle('On-Hand Material')/items(@{first(body('Get_OnHand_for_Part_Batch_with_Lock')?['value'])?['ID']})`
 - Headers:
-  - IF-MATCH: `@{body('Get_ETag_For_Rollback')?['@odata.etag']}`
+  - If-Match: `@{body('Get_ETag_For_Rollback')?['@odata.etag']}`
   - X-HTTP-Method: MERGE
   - Content-Type: application/json;odata=verbose
 - Body:

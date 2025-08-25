@@ -6,9 +6,9 @@ This system implements a robust inventory tracking solution using Power Automate
 
 ## SharePoint Lists Setup
 
-### 1. Parts List (Master Data)
+### 1. Parts Master List (Master Data)
 
-Create a SharePoint list named **"Parts"** with these columns:
+Create a SharePoint list named **"Parts Master"** with these columns:
 
 | Column Name | Type | Settings |
 |------------|------|----------|
@@ -37,8 +37,8 @@ Create a SharePoint list named **"Tech Transactions"** with these columns:
 | Column Name | Type | Settings |
 |------------|------|----------|
 | TransactionType | Choice | Choices: RECEIVE, ISSUE, RETURNED (Required) |
-| PONumber | Single line of text | Conditionally Required |
-| PartNumber | Single line of text | Required |
+| PO | Lookup | Optional (Required for ISSUE/RETURNED), Source: PO List, Show: PONumber |
+| Part | Lookup | Required, Source: Parts Master, Show: PartNumber |
 | Batch | Single line of text | Required |
 | Qty | Number | Required, Min: 0 |
 | UOM | Choice | Required (Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc.) |
@@ -53,7 +53,7 @@ Create a SharePoint list named **"On-Hand Material"** with these columns:
 
 | Column Name | Type | Settings |
 |------------|------|----------|
-| PartNumber | Single line of text | Required, Indexed |
+| Part | Lookup | Required, Source: Parts Master, Show: PartNumber |
 | Batch | Single line of text | Required, Indexed |
 | UOM | Choice | Required (Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc.) |
 | OnHandQty | Number | Default: 0 |
@@ -84,7 +84,7 @@ Create a SharePoint list named **"Flow Error Log"** with these columns:
 | FlowName | Single line of text | Required |
 | ErrorMessage | Multiple lines of text | Required |
 | StackTrace | Multiple lines of text | Optional |
-| RecordId | Single line of text | Optional |
+| ItemID | Single line of text | Optional |
 | Severity | Choice | Critical, Warning, Info |
 | Timestamp | Date and Time | Required |
 | ResolvedAt | Date and Time | Optional |
