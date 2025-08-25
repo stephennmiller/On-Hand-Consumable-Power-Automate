@@ -151,11 +151,17 @@ Each flow includes specific test cases:
 ## Common Troubleshooting Areas
 
 1. **Trigger Conditions**: Exact syntax and Choice column value access
+
 2. **ETag Handling**: Proper capture and usage for locking - use `first(body('Get_OnHand_for_Part_Batch')?['value'])?['@odata.etag']`
+
 3. **Filter Queries**: Single quote escaping and case sensitivity
+
 4. **Float Conversions**: Required for all numeric operations
+
 5. **Metadata Type Names**: SharePoint list internal names - e.g., `SP.Data.On_x002d_Hand_x0020_MaterialListItem`
+
 6. **Concurrency Issues**: Set trigger concurrency to 1 for ISSUE flows to prevent race conditions
+
 7. **HTTP Status Codes**:
    - Lock success = 204  
      `equals(outputs('Lock_Action')?['statusCode'], 204)`
@@ -168,10 +174,10 @@ Each flow includes specific test cases:
 
 ## Important Files for Reference
 
-- `START-HERE.md`: Prerequisites, SharePoint schemas, implementation order, quick test plan
-- `FLOW-03-Issue-Processing.md`: Most complex flow with ETag locking, rollback patterns, and compensating transactions
-- `FLOW-05-Daily-Recalc.md`: Advanced patterns including checkpoints, circuit breakers, and batch processing
-- `reference-docs/01-error-handling-patterns.md`: Comprehensive error handling strategies
+- **START-HERE.md**: Prerequisites, SharePoint schemas, implementation order, quick test plan
+- **FLOW-03-Issue-Processing.md**: Most complex flow with ETag locking, rollback patterns, and compensating transactions
+- **FLOW-05-Daily-Recalc.md**: Advanced patterns including checkpoints, circuit breakers, and batch processing
+- **reference-docs/01-error-handling-patterns.md**: Comprehensive error handling strategies
 
 ## Implementation Timeline
 
