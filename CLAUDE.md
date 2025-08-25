@@ -68,9 +68,11 @@ Recommended types/formatting:
 - `PONumber`: Single line of text (Enforce unique = Yes).
 - `UOM`, `Location`: Single line of text (or Choice if your flows expect strict options—document your choice consistently across files).
 - `IsActive`: Yes/No.
-- `LastMovementAt`: Date and Time (UTC).
+- `LastMovementAt`: Date and Time (UTC). Use `utcNow()` when writing.
 - `LastMovementType`, `LastMovementRefId`: Single line of text.
 - Flow Error Log → `ItemID`: Number; `FlowRunURL`: Hyperlink or Picture; others: Single line of text.
+  - Writing `FlowRunURL` (SharePoint connector): supply an object:
+    `{ "Url": "@{variables('vRunUrl')}", "Description": "Run details" }`
 
 ### Required Environment Variables (Dataverse)
 
@@ -93,6 +95,7 @@ PO List minimum columns:
 - Optional metadata: `Vendor` (Text), `PODate` (Date), `Notes` (Multiline)
 Filter example (FLOW-01 validation):
 `$filter=PONumber eq '@{variables('vPONumberEscaped')}' and IsOpen eq true`
+Action setting: set "Top Count" = `1` (since `PONumber` is unique)
 
 ### Expression Syntax Notes
 
@@ -103,6 +106,9 @@ Filter example (FLOW-01 validation):
   - Example condition (string): `@equals(triggerOutputs()?['body/PostStatus'], 'Validated')`
   - Tip: Use Peek code on the trigger/Get item to confirm whether the Choice value is a string or an object (with `Value`) before choosing an expression.
   - Note: `triggerBody()` and `triggerOutputs()?['body']` are equivalent—use one form consistently in a given flow to improve searchability and reduce copy-paste errors.
+- When writing Choice values:
+  - Single-select: pass a string (e.g., `'Validated'`).
+  - Multi-select: pass an array of strings (e.g., `['Open','Urgent']`).
 - Always escape single quotes in filters: `replace(variables('vPart'),'''','''''')`
 - Float conversion required for calculations: `float(variables('vQty'))`
 - Round to 2 decimals for quantities: `round(float(variables('vQty')), 2)`
@@ -119,8 +125,14 @@ Filter example (FLOW-01 validation):
 
 **On-Hand Material List**:
 - Index: `PartNumber`, `Batch`, `UOM`, `Location`
-- Prefer a dedicated text column `CompositeKey` (indexed) populated by the flow, e.g.:
-- `concat(PartNumber, '|', coalesce(Batch,''), '|', UOM, '|', Location)`
+- Prefer a dedicated text column `CompositeKey` (indexed) populated by the flow.
+- Prefer normalized key (trim + upper-case):
+- `concat(
+  toUpper(trim(variables('vPartNumber'))), '|',
+  coalesce(toUpper(trim(variables('vBatch'))),''), '|',
+  toUpper(trim(variables('vUOM'))), '|',
+  toUpper(trim(variables('vLocation')))
+  )`
 - Use a delimiter like `|` that won't appear in data. This key works reliably in $filter and supports lookups.
 
 **Flow Error Log**:
@@ -144,6 +156,17 @@ When updating documentation:
 
 - **FLOW-03 Locking Pattern**: Uses HTTP MERGE with ETag for optimistic locking, requires careful error handling
   - Send `If-Match: <etag>` with MERGE/Update; success returns 204 No Content
+  - Required headers (SharePoint REST):
+    - `Accept: application/json;odata=nometadata`
+    - `Content-Type: application/json;odata=nometadata`
+    - `If-Match: "<etag>"`
+  - Use either:
+    - POST + header `X-HTTP-Method: MERGE`, or
+    - PATCH (if your HTTP action/tenant supports it)
+  - Example (HTTP action):
+    - Method: POST
+    - Uri: `https://{site}/_api/web/lists/getbytitle('On-Hand Material')/items(@{variables('vOnHandId')})`
+    - Headers: as above (plus `X-HTTP-Method: MERGE` for POST)
   - On 412 (Precondition Failed), re-read the item to get latest ETag, reapply changes, retry with bounded exponential backoff (e.g., 1s, 2s, 4s; max 3 attempts)
 - **Rollback Mechanism**: Step 16 in FLOW-03 implements compensating transactions
 - **Batch Processing**: FLOW-05 uses SharePoint batch APIs for significant performance improvement (results vary by tenant and list size)
@@ -194,8 +217,8 @@ Each flow includes specific test cases:
      `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 429)`
    - 5xx Server Errors → transient faults: retry up to 3 attempts with bounded exponential backoff  
      `@and(greaterOrEquals(outputs('Your_Http_Action_Name')?['statusCode'], 500), less(outputs('Your_Http_Action_Name')?['statusCode'], 600))`
-   - Delay duration per attempt (vAttempt = 1..3), seconds with small jitter:
-     `PT@{add(int(pow(2, sub(variables('vAttempt'), 1))), rand(0,2))}S`
+   - Delay duration per attempt (vAttempt = 1..3), prefer `Retry-After` header (secs) else exponential + jitter:
+     `PT@{coalesce(int(outputs('Your_Http_Action_Name')?['headers']?['Retry-After']), add(int(pow(2, sub(variables('vAttempt'), 1))), rand(0,2)))}S`
    - Do Until termination (complete when success OR attempts exhausted):
      `@or(equals(outputs('Lock_Action')?['statusCode'], 204), greaterOrEquals(variables('vAttempt'), 3))`
 
