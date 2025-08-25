@@ -85,6 +85,7 @@ Recommended types/formatting:
 - Example usage in expressions:
   - Site: `@{environment('SharePointSiteUrl')}`
   - Admin: `@{environment('AdminEmail')}`
+  - Note: environment() takes the environment variable's schema name (not display name).
 
 ### Required SharePoint Lists
 
@@ -134,7 +135,12 @@ Action setting: set "Top Count" = `1` (since `PONumber` is unique)
 - Index: `PartNumber`, `Batch`, `UOM`, `Location`
 - Prefer a dedicated text column `CompositeKey` (indexed) populated by the flow.
 - Prefer normalized key (trim + upper-case):
-- `concat(toUpper(trim(variables('vPartNumber'))),'|',coalesce(toUpper(trim(variables('vBatch'))),''),'|',toUpper(trim(variables('vUOM'))),'|',toUpper(trim(variables('vLocation'))))`
+- `concat(
+  toUpper(trim(coalesce(variables('vPartNumber'), ''))),'|',
+  toUpper(trim(coalesce(variables('vBatch'), ''))),'|',
+  toUpper(trim(coalesce(variables('vUOM'), ''))),'|',
+  toUpper(trim(coalesce(variables('vLocation'), '')))
+  )`
 - Use a delimiter like `|` that won't appear in data. This key works reliably in $filter and supports lookups.
 
 **Flow Error Log**:
@@ -168,7 +174,8 @@ When updating documentation:
   - Example (Send an HTTP request to SharePoint — preferred):
     - Site Address: `@{environment('SharePointSiteUrl')}`
     - Method: POST
-    - Uri: `/_api/web/lists/getbytitle('On-Hand Material')/items(@{variables('vOnHandId')})`
+    - Uri (resilient): `/_api/web/lists(guid'{YourListGuid}')/items(@{variables('vOnHandId')})`
+      - Alternative (title-based): `/_api/web/lists/getbytitle('On-Hand Material')/items(@{variables('vOnHandId')})`
     - Headers: as above (plus `X-HTTP-Method: MERGE` for POST)
   - Alternative (generic HTTP connector with Entra ID):
     - Add `Authorization: Bearer <token>` and any tenant-required headers (e.g., request digest in classic contexts).
@@ -218,8 +225,8 @@ Each flow includes specific test cases:
    - The connector manages `$skiptoken` internally when Pagination is On; stable ordering plus idempotent filters helps avoid duplicates on retries.
 
 8. **HTTP Status Codes**:
-   - Lock success = 204 (and in some cases 200 for PATCH)
-     `@or(equals(outputs('Lock_Action')?['statusCode'], 204), equals(outputs('Lock_Action')?['statusCode'], 200))`
+   - Lock success: any 2xx
+     `@and(greaterOrEquals(outputs('Lock_Action')?['statusCode'], 200), less(outputs('Lock_Action')?['statusCode'], 300))`
      (replace `Lock_Action` with your actual action name)
    - 412 Precondition Failed → ETag mismatch: re-read the item to refresh ETag, then retry (max 3 attempts)  
      `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 412)`
@@ -235,7 +242,10 @@ Each flow includes specific test cases:
         add(int(pow(2, sub(variables('vAttempt'), 1))), rand(0,2))
      )}S`
    - Do Until termination (complete when success OR attempts exhausted):
-     `@or(equals(outputs('Lock_Action')?['statusCode'], 204), greaterOrEquals(variables('vAttempt'), 3))`
+     `@or(
+       and(greaterOrEquals(outputs('Lock_Action')?['statusCode'], 200), less(outputs('Lock_Action')?['statusCode'], 300)),
+       greaterOrEquals(variables('vAttempt'), 3)
+     )`
 
 ## Important Files for Reference
 
