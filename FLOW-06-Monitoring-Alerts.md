@@ -132,13 +132,13 @@ Map:
   "Status": @{item()?['Status']},
   "PerformanceScore": @{
     if(
-      less(item()['Duration'], 60000),
+      less(item()?['Duration'], 60000),
       100,
       if(
-        less(item()['Duration'], 120000),
+        less(item()?['Duration'], 120000),
         80,
         if(
-          less(item()['Duration'], 300000),
+          less(item()?['Duration'], 300000),
           60,
           40
         )
@@ -491,6 +491,9 @@ Value:
 Action: Send an HTTP request to SharePoint
 Method: GET
 Uri: _api/web/lists/getbytitle('Performance Metrics')/items?$filter=Created ge datetime'@{addMinutes(utcNow(), -15)}'&$orderby=Created desc&$top=100
+Headers:
+  Accept: application/json;odata=nometadata
+  Content-Type: application/json;odata=nometadata
 ```
 
 #### Step 3: Calculate Threshold Metrics
