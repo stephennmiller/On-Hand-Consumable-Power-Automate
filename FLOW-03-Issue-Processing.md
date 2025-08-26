@@ -35,6 +35,7 @@ Processes validated ISSUE and RETURNED transactions to remove inventory from the
 4. Choose trigger: **"When an item is created or modified - SharePoint"**
 5. Configure:
    - Site Address: `@{environment('SharePointSiteUrl')}`
+     - **Note**: Replace 'SharePointSiteUrl' with your actual environment variable schema name (e.g., 'cr123_SharePointSiteUrl')
    - List Name: Tech Transactions
 6. **Advanced Options:**
    - Limit Columns by View: Yes (performance optimization)

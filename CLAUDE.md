@@ -48,8 +48,7 @@ Located in `reference-docs/`:
 
 ### Concurrency Control
 
-- Uses ETag-based optimistic locking for inventory updates (primary mechanism)
-- ProcessingLock column is **optional** and not used by the provided flows - ETag is the primary and sufficient locking mechanism
+- Uses ETag-based optimistic locking for inventory updates
 - Trigger concurrency settings:
   - **ISSUE and RETURNED flows**: Set to 1 (critical for preventing race conditions)
     - Flow settings path: Trigger → Settings → Concurrency Control → On, Degree of Parallelism: 1

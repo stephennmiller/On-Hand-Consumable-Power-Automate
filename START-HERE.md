@@ -2,7 +2,10 @@
 
 ## What You're Building
 
-A complete inventory tracking system in SharePoint + Power Automate that tracks consumable materials with receive/issue transactions.
+A complete inventory tracking system in SharePoint + Power Automate that tracks consumable materials through three transaction types:
+- **RECEIVE** - Adds inventory when materials arrive from vendors
+- **ISSUE** - Removes inventory when materials are consumed by technicians
+- **RETURNED** - Removes inventory when defective/damaged materials are returned to vendors for credit/replacement
 
 ## Required Order of Implementation
 
@@ -62,9 +65,13 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | LastMovementAt | Date and Time | Optional |
 | LastMovementType | Single line of text | Optional |
 | LastMovementRefId | Single line of text | Optional |
-| CompositeKey | Single line of text | Optional (highly recommended for performance), Indexed |
+| CompositeKey | Single line of text | Optional (future enhancement), Indexed |
 
-**CompositeKey Note**: This optional but highly recommended column significantly improves query performance. If added, flows will populate it with a normalized key: `concat(toUpper(trim(coalesce(variables('vPartNumber'), ''))),'|',toUpper(trim(coalesce(variables('vBatch'), ''))),'|',toUpper(trim(coalesce(variables('vUOM'), ''))))`. Always normalize with trim/uppercase before concatenation to avoid duplicate keys from casing/spacing differences. This allows for single-column filtered queries instead of complex multi-column filters.
+**CompositeKey Note**: This is an optional column for future performance optimization. The provided flows do NOT currently populate or use this field. If you wish to implement it:
+1. Add the column as shown above
+2. Modify FLOW-02 and FLOW-03 to populate it with: `concat(toUpper(trim(coalesce(variables('vPartNumber'), ''))),'|',toUpper(trim(coalesce(variables('vBatch'), ''))),'|',toUpper(trim(coalesce(variables('vUOM'), ''))))`
+3. Update Get items filters to use `CompositeKey eq '@{variables('vCompositeKey')}'` instead of the multi-column filter
+This optimization can improve query performance in high-volume scenarios but is not required for initial implementation.
 
 #### Flow Error Log List
 
@@ -72,11 +79,19 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 |-------------|------|----------|
 | Title | Single line of text | Flow name that encountered the error |
 | ErrorMessage | Multiple lines of text | Required, full error details and stack trace |
-| FlowRunURL | Hyperlink | Optional, link to view flow run |
+| FlowRunURL | Hyperlink | Optional, link to view flow run (see note below) |
 | ItemID | Single line of text | Optional, ID of source transaction that failed |
 | Timestamp | Date and Time | Required, when error occurred (UTC) |
 
 **Note**: This is a separate list for flow errors. Tech Transactions uses PostMessage field for status updates.
+
+**FlowRunURL Implementation**: When using the SharePoint connector to set this Hyperlink field, pass a JSON object:
+```json
+{
+  "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
+  "Description": "View Flow Run"
+}
+```
 
 #### PO List (Required for ISSUE validation)
 
@@ -215,7 +230,7 @@ After building Phase 1, test with this sequence:
 
 | Problem | Solution |
 |---------|----------|
-| "Flow not triggering" | Verify trigger condition (use the one that matches your trigger output shape):<br/>`@equals(triggerBody()?['PostStatus'], 'Validated')`<br/>or (if PostStatus is an object):<br/>`@equals(triggerBody()?['PostStatus']?['Value'], 'Validated')` |
+| "Flow not triggering" | Verify trigger condition. All flows assume PostStatus returns a string value:<br/>`@equals(triggerBody()?['PostStatus'], 'Validated')`<br/>Note: If your SharePoint returns PostStatus as an object, update all trigger conditions to use:<br/>`@equals(triggerBody()?['PostStatus']?['Value'], 'Validated')` |
 | "PostStatus not updating" | Check exact column name spelling and that it's a Choice column with correct values |
 | "Duplicate inventory rows" | Fix OData filter: `Part/Id eq @{variables('vPartId')} and Batch eq '@{variables('vBatch')}' and UOM eq '@{variables('vUOM')}'` |
 | "Negative inventory allowed" | Add condition in FLOW-03 Step 12: `greaterOrEquals(outputs('Compute_New_Qty'), 0)` to allow exact depletion |

@@ -878,6 +878,7 @@ Body:
 ```
 Action: Send message to Azure SignalR
 Connection String: @{environment('SignalRConnection')}
+   Note: Replace 'SignalRConnection' with your actual environment variable schema name
 Hub Name: DashboardHub
 Target: updateMetric
 Arguments:
@@ -1099,6 +1100,7 @@ Fields:
 
 Action: Send an email (V2)  
 To: @{environment('AdminEmail')}
+   Note: Replace 'AdminEmail' with your actual environment variable schema name (e.g., 'cr123_AdminEmail')
 Subject: ⚠️ Monitoring Flow Error - @{workflow()?['name']}
 Body: 
   Flow: @{workflow()?['name']}
