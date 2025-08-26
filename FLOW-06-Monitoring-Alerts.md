@@ -122,14 +122,14 @@ Headers:
 
 ```
 Action: Select
-From: @{body('Get_Recent_Flow_Runs')['d']['results']}
+From: @{body('Get_Recent_Flow_Runs')?['value']}
 Map:
 {
-  "FlowName": @{item()['FlowName']},
-  "RunID": @{item()['RunID']},
-  "Duration": @{sub(ticks(item()['EndTime']), ticks(item()['StartTime']))},
-  "RecordsProcessed": @{item()['RecordsProcessed']},
-  "Status": @{item()['Status']},
+  "FlowName": @{item()?['FlowName']},
+  "RunID": @{item()?['RunID']},
+  "Duration": @{div(sub(ticks(item()?['EndTime']), ticks(item()?['StartTime'])), 10000)},
+  "RecordsProcessed": @{item()?['RecordsProcessed']},
+  "Status": @{item()?['Status']},
   "PerformanceScore": @{
     if(
       less(item()['Duration'], 60000),
@@ -150,42 +150,39 @@ Map:
 
 #### Step 4: Calculate Aggregated Metrics
 
+Add these **"Initialize variable"** actions:
+
+- **Name:** vTotalDuration, **Type:** Integer, **Value:** 0
+- **Name:** vItemCount, **Type:** Integer, **Value:** 0
+- **Name:** vSuccessCount, **Type:** Integer, **Value:** 0
+- **Name:** vTotalRecords, **Type:** Integer, **Value:** 0
+
+Add **"Apply to each"** action:
+
+**Select:** `@{body('Select_Performance_Data')}`
+
+Inside the loop, add these **"Increment variable"** actions:
+
+1. **Increment vTotalDuration by:** `@{int(items('Apply_to_each')?['Duration'])}`
+2. **Increment vItemCount by:** 1
+3. **Increment vSuccessCount by:** `@{if(equals(items('Apply_to_each')?['Status'],'Success'),1,0)}`
+4. **Increment vTotalRecords by:** `@{int(coalesce(items('Apply_to_each')?['RecordsProcessed'], 0))}`
+
+After the loop, add **"Compose"** actions for calculations:
+
+**Average Duration:**
+```powerautomate
+@{div(variables('vTotalDuration'), max(variables('vItemCount'), 1))}
 ```
-Expression for Average Duration:
-div(
-  add(
-    apply(
-      body('Select_Performance_Data'),
-      x => x['Duration']
-    )
-  ),
-  length(body('Select_Performance_Data'))
-)
 
-Expression for Success Rate:
-mul(
-  div(
-    length(
-      filter(
-        body('Select_Performance_Data'),
-        x => equals(x['Status'], 'Success')
-      )
-    ),
-    length(body('Select_Performance_Data'))
-  ),
-  100
-)
+**Success Rate:**
+```powerautomate
+@{mul(div(variables('vSuccessCount'), max(variables('vItemCount'), 1)), 100)}
+```
 
-Expression for Throughput:
-div(
-  sum(
-    apply(
-      body('Select_Performance_Data'),
-      x => x['RecordsProcessed']
-    )
-  ),
-  variables('MetricsWindow')
-)
+**Throughput (records/minute):**
+```powerautomate
+@{div(variables('vTotalRecords'), max(variables('MetricsWindow'), 1))}
 ```
 
 #### Step 5: Store Metrics in SharePoint
@@ -221,12 +218,18 @@ Filter: IsActive eq true and AlertType eq 'Performance'
 Action: Apply to each alert configuration
   Condition: Check if threshold breached
   Expression: 
-    switch(
-      items('Apply_to_each')['ThresholdOperator'],
-      'Greater', greater(variables('CurrentMetric'), items('Apply_to_each')['ThresholdValue']),
-      'Less', less(variables('CurrentMetric'), items('Apply_to_each')['ThresholdValue']),
-      'Equal', equals(variables('CurrentMetric'), items('Apply_to_each')['ThresholdValue']),
-      false
+    @if(
+      equals(items('Apply_to_each')?['ThresholdOperator'], 'Greater'),
+      greater(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+      if(
+        equals(items('Apply_to_each')?['ThresholdOperator'], 'Less'),
+        less(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+        if(
+          equals(items('Apply_to_each')?['ThresholdOperator'], 'Equal'),
+          equals(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+          false
+        )
+      )
     )
   
   If Yes: Add to AlertsToSend array
@@ -291,14 +294,17 @@ if(
 ```
 Action: Get items
 List: Alert Configuration
-Filter: FlowName eq '@{body('Get_item')['FlowName']}' and AlertType eq 'Error'
+Filter: FlowName eq '@{body('Get_item')?['FlowName']}' and AlertType eq 'Error'
 
-Condition: Check if cooldown expired
-Expression:
-greater(
-  ticks(utcNow()),
-  ticks(addMinutes(items('Apply_to_each')['LastAlertTime'], items('Apply_to_each')['CooldownMinutes']))
-)
+Action: Apply to each alert configuration
+Source: @{body('Get_items')?['value']}
+
+  Condition: Check if cooldown expired
+  Expression:
+  @greater(
+    ticks(utcNow()),
+    ticks(addMinutes(items('Apply_to_each')?['LastAlertTime'], items('Apply_to_each')?['CooldownMinutes']))
+  )
 ```
 
 #### Step 4: Send Teams Alert
@@ -489,40 +495,39 @@ Uri: _api/web/lists/getbytitle('Performance Metrics')/items?$filter=Created ge d
 
 #### Step 3: Calculate Threshold Metrics
 
+Add **"Initialize variable"** actions:
+- **Name:** vTotalDuration2, **Type:** Integer, **Value:** 0
+- **Name:** vItemCount2, **Type:** Integer, **Value:** 0
+- **Name:** vFailedCount, **Type:** Integer, **Value:** 0
+
+Add **"Apply to each"** action:
+**Source:** `@{body('Get_Current_Metrics')?['value']}`
+
+Inside the loop:
+1. **Increment vTotalDuration2 by:** `@{int(coalesce(items('Apply_to_each')?['Duration'], 0))}`
+2. **Increment vItemCount2 by:** 1
+3. **Increment vFailedCount by:** `@{if(equals(items('Apply_to_each')?['Status'],'Failed'),1,0)}`
+
+After the loop, add **"Compose"** actions:
+
+**Average Processing Time:**
+```powerautomate
+@{div(variables('vTotalDuration2'), max(variables('vItemCount2'), 1))}
 ```
-Expression for Average Processing Time:
-div(
-  sum(
-    apply(
-      body('Get_Current_Metrics')['d']['results'],
-      x => x['Duration']
-    )
-  ),
-  length(body('Get_Current_Metrics')['d']['results'])
-)
 
-Expression for Error Rate:
-mul(
-  div(
-    length(
-      filter(
-        body('Get_Current_Metrics')['d']['results'],
-        x => equals(x['Status'], 'Failed')
-      )
-    ),
-    length(body('Get_Current_Metrics')['d']['results'])
-  ),
-  100
-)
+**Error Rate:**
+```powerautomate
+@{mul(div(variables('vFailedCount'), max(variables('vItemCount2'), 1)), 100)}
+```
 
-Expression for Queue Length:
-body('Get_Queue_Status')['d']['ItemCount']
+**Queue Length:**
+```powerautomate
+@{coalesce(body('Get_Queue_Status')?['ItemCount'], 0)}
+```
 
-Expression for Memory Usage:
-div(
-  body('Get_System_Metrics')['MemoryUsed'],
-  body('Get_System_Metrics')['MemoryTotal']
-)
+**Memory Usage (percentage):**
+```powerautomate
+@{mul(div(body('Get_System_Metrics')?['MemoryUsed'], max(1, body('Get_System_Metrics')?['MemoryTotal'])), 100)}
 ```
 
 #### Step 4: Check Each Threshold
@@ -533,22 +538,34 @@ Action: Apply to each threshold rule
   
   Action: Compose current metric value
   Inputs:
-    switch(
-      items('Apply_to_each')['metric'],
-      'AverageProcessingTime', variables('AvgProcessingTime'),
-      'ErrorRate', variables('ErrorRate'),
-      'QueueLength', variables('QueueLength'),
-      'MemoryUsage', variables('MemoryUsage'),
-      0
+    @if(
+      equals(items('Apply_to_each')?['metric'], 'AverageProcessingTime'),
+      variables('AvgProcessingTime'),
+      if(
+        equals(items('Apply_to_each')?['metric'], 'ErrorRate'),
+        variables('ErrorRate'),
+        if(
+          equals(items('Apply_to_each')?['metric'], 'QueueLength'),
+          variables('QueueLength'),
+          if(
+            equals(items('Apply_to_each')?['metric'], 'MemoryUsage'),
+            variables('MemoryUsage'),
+            0
+          )
+        )
+      )
     )
   
   Condition: Check if threshold breached
   Expression:
-    switch(
-      items('Apply_to_each')['operator'],
-      'greater', greater(outputs('Compose_metric'), items('Apply_to_each')['threshold']),
-      'less', less(outputs('Compose_metric'), items('Apply_to_each')['threshold']),
-      false
+    @if(
+      equals(items('Apply_to_each')?['operator'], 'greater'),
+      greater(outputs('Compose_metric'), items('Apply_to_each')?['threshold']),
+      if(
+        equals(items('Apply_to_each')?['operator'], 'less'),
+        less(outputs('Compose_metric'), items('Apply_to_each')?['threshold']),
+        false
+      )
     )
   
   If Yes: Send threshold breach notification
