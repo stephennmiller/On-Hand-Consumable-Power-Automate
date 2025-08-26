@@ -339,43 +339,42 @@ Set Retry Policy to **None** for:
    - Set the Pagination threshold high enough to cover the total expected items (it does not need to equal `$top`).
    - The connector manages `$skiptoken` internally when Pagination is On; stable ordering plus idempotent filters helps avoid duplicates on retries.
 
-8. **HTTP Status Codes**:
+8. **HTTP Status Codes** (example using FLOW-03's "Lock_OnHand_with_ETag_Attempt" action):
    - Lock success: any 2xx
-     `@and(greaterOrEquals(outputs('Lock_Action')?['statusCode'], 200), less(outputs('Lock_Action')?['statusCode'], 300))`
-     (replace `Lock_Action` with your actual action name)
+     `@and(greaterOrEquals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 200), less(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 300))`
    - Retry Policy: set the MERGE/Update HTTP action Retry Policy to `None` (Action → Settings) when using this Do Until pattern to prevent double retries.
    - 412 Precondition Failed → ETag mismatch: re-read the item to refresh ETag, then retry (max 3 attempts)  
-     `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 412)`
+     `@equals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 412)`
    - 429 Too Many Requests → throttling: retry up to 3 attempts with bounded exponential backoff + jitter  
-     `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 429)`
+     `@equals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 429)`
    - 409 Conflict → unique/index constraint violation or conflicting state:
      - Treat as non-retryable validation/business error (log and exit), unless your scenario intentionally retries idempotent creates.
-     `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 409)`
+     `@equals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 409)`
    - 408 Request Timeout → transient: retry with bounded exponential backoff  
-     `@equals(outputs('Your_Http_Action_Name')?['statusCode'], 408)`
+     `@equals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 408)`
    - 5xx Server Errors → transient faults: retry up to 3 attempts with bounded exponential backoff  
-     `@and(greaterOrEquals(outputs('Your_Http_Action_Name')?['statusCode'], 500), less(outputs('Your_Http_Action_Name')?['statusCode'], 600))`
+     `@and(greaterOrEquals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 500), less(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 600))`
    - vAttempt management:
      - Initialize before the loop: Initialize variable `vAttempt` (Integer) = `1`
      - At end of each iteration: Set variable `vAttempt` → `@{add(variables('vAttempt'), 1)}`
    - Do Until (Change limits): set `Count` = `3` and a conservative `Timeout` (e.g., `PT1M`) to avoid runaway loops if variables are mis-set.
    - Delay duration per attempt (vAttempt = 1..3). Prefer `Retry-After` (secs). If only `x-ms-retry-after-ms` is present, convert ms→s. Else use exponential + jitter:
      `PT@{int(coalesce(
-        outputs('Your_Http_Action_Name')?['headers']?['Retry-After'],
-        outputs('Your_Http_Action_Name')?['headers']?['retry-after'],
+        outputs('Lock_OnHand_with_ETag_Attempt')?['headers']?['Retry-After'],
+        outputs('Lock_OnHand_with_ETag_Attempt')?['headers']?['retry-after'],
         if(
           or(
-            equals(outputs('Your_Http_Action_Name')?['headers']?['x-ms-retry-after-ms'], null),
-            empty(outputs('Your_Http_Action_Name')?['headers']?['x-ms-retry-after-ms'])
+            equals(outputs('Lock_OnHand_with_ETag_Attempt')?['headers']?['x-ms-retry-after-ms'], null),
+            empty(outputs('Lock_OnHand_with_ETag_Attempt')?['headers']?['x-ms-retry-after-ms'])
           ),
           null,
-          string(ceiling(div(float(outputs('Your_Http_Action_Name')?['headers']?['x-ms-retry-after-ms']), 1000)))
+          string(ceiling(div(float(outputs('Lock_OnHand_with_ETag_Attempt')?['headers']?['x-ms-retry-after-ms']), 1000)))
         ),
         string(add(int(pow(2, sub(variables('vAttempt'), 1))), rand(0,2)))
      ))}S`
    - Do Until termination (complete when success OR attempts exhausted):
      `@or(
-       and(greaterOrEquals(outputs('Lock_Action')?['statusCode'], 200), less(outputs('Lock_Action')?['statusCode'], 300)),
+       and(greaterOrEquals(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 200), less(outputs('Lock_OnHand_with_ETag_Attempt')?['statusCode'], 300)),
        greaterOrEquals(variables('vAttempt'), 3)
      )`
 

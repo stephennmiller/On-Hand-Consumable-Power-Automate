@@ -15,7 +15,7 @@ Automatically populates Description and UOM fields when a technician selects a P
 
 ```powerautomate
 @and(
-  equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), ''),
+  equals(coalesce(triggerBody()?['PostStatus'], ''), ''),
   greater(coalesce(triggerBody()?['Part']?['Id'], 0), 0)
 )
 ```
@@ -56,7 +56,7 @@ Skip this flow if:
 
 ```powerautomate
 @and(
-  equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), ''),
+  equals(coalesce(triggerBody()?['PostStatus'], ''), ''),
   greater(coalesce(triggerBody()?['Part']?['Id'], 0), 0)
 )
 ```
@@ -372,7 +372,7 @@ To ensure the Validation flow doesn't run before Autofill completes, add a trigg
 Add Trigger Condition:
 ```powerautomate
 @and(
-  equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), ''),
+  equals(coalesce(triggerBody()?['PostStatus'], ''), ''),
   greater(length(coalesce(triggerBody()?['Description'], '')), 0)
 )
 ```

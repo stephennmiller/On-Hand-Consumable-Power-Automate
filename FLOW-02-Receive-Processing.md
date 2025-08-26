@@ -15,8 +15,8 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 
 ```powerautomate
 @and(
-  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
-  equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RECEIVE')
+  equals(trim(coalesce(triggerBody()?['PostStatus'], '')), 'Validated'),
+  equals(toUpper(trim(coalesce(triggerBody()?['TransactionType'], ''))), 'RECEIVE')
 )
 ```
 
@@ -45,8 +45,8 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 
 ```powerautomate
 @and(
-  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
-  equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RECEIVE')
+  equals(trim(coalesce(triggerBody()?['PostStatus'], '')), 'Validated'),
+  equals(toUpper(trim(coalesce(triggerBody()?['TransactionType'], ''))), 'RECEIVE')
 )
 ```
 
@@ -198,11 +198,9 @@ Add **"Initialize variable"** action:
 
 #### Step 9b: Update with New Quantity (Using ETag)
 
-Add **"Send an HTTP request to SharePoint"** action:
+Add **"Send an HTTP request to SharePoint"** action.
 
-**Action Name:** "Update_Existing_OnHand_with_ETag"
-
-**Note:** Rename this action to exactly "Update_Existing_OnHand_with_ETag" to match expressions below.
+**⚠️ CRITICAL:** After adding this action, immediately click the title bar and rename it to exactly **"Update_Existing_OnHand_with_ETag"** (this exact name is required for the expressions in Step 9c below).
 
 **Configure:**
 
@@ -255,11 +253,9 @@ Add **"Condition"** action:
 
 ### Step 10: Configure NO Branch (Create New)
 
-In the **No** branch, add **"Create item - SharePoint"** action:
+In the **No** branch, add **"Create item - SharePoint"** action.
 
-**Action Name:** "Create_New_OnHand"
-
-**Note:** Rename this action to exactly "Create_New_OnHand" to match any expressions that reference it.
+**⚠️ IMPORTANT:** After adding this action, click the title bar and rename it to exactly **"Create_New_OnHand"** (this exact name may be referenced in error handling expressions).
 
 **Configure:**
 

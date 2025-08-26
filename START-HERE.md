@@ -46,8 +46,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | PO | Lookup | Optional (Required for ISSUE/RETURNED), Allow single selection, Source: PO List, Show: PONumber |
 | Qty | Number | Required, Min: 0.01, Decimal places: 2 |
 | PostStatus | Choice | Choices: New, Validated, Processing, Posted, Error (Default: New) |
-| PostMessage | Multiple lines of text | Optional (status messages) |
-| ErrorMessage | Multiple lines of text | Optional (legacy/compatibility) |
+| PostMessage | Multiple lines of text | Optional (status messages from flows) |
 | PostedAt | Date and Time | Optional (UTC timestamp when posted) |
 
 #### On-Hand Material List
@@ -63,18 +62,21 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | LastMovementAt | Date and Time | Optional |
 | LastMovementType | Single line of text | Optional |
 | LastMovementRefId | Single line of text | Optional |
+| CompositeKey | Single line of text | Optional (highly recommended for performance), Indexed |
 
-**Performance Note**: Consider adding a single line text column `CompositeKey` (indexed) that flows populate with normalized key: `concat(toUpper(trim(coalesce(variables('vPartNumber'), ''))),'|',toUpper(trim(coalesce(variables('vBatch'), ''))),'|',toUpper(trim(coalesce(variables('vUOM'), ''))))`. Always normalize with trim/uppercase before concatenation to avoid duplicate keys from casing/spacing differences. Since UOM is a Choice, it returns a string value (e.g., 'EA') which is perfect for the composite key.
+**CompositeKey Note**: This optional but highly recommended column significantly improves query performance. If added, flows will populate it with a normalized key: `concat(toUpper(trim(coalesce(variables('vPartNumber'), ''))),'|',toUpper(trim(coalesce(variables('vBatch'), ''))),'|',toUpper(trim(coalesce(variables('vUOM'), ''))))`. Always normalize with trim/uppercase before concatenation to avoid duplicate keys from casing/spacing differences. This allows for single-column filtered queries instead of complex multi-column filters.
 
 #### Flow Error Log List
 
 | Column Name | Type | Settings |
 |-------------|------|----------|
-| Title | Single line of text | Flow name |
-| ErrorMessage | Multiple lines of text | Required |
-| FlowRunURL | Hyperlink | Optional |
-| ItemID | Single line of text | Optional |
-| Timestamp | Date and Time | Required |
+| Title | Single line of text | Flow name that encountered the error |
+| ErrorMessage | Multiple lines of text | Required, full error details and stack trace |
+| FlowRunURL | Hyperlink | Optional, link to view flow run |
+| ItemID | Single line of text | Optional, ID of source transaction that failed |
+| Timestamp | Date and Time | Required, when error occurred (UTC) |
+
+**Note**: This is a separate list for flow errors. Tech Transactions uses PostMessage field for status updates.
 
 #### PO List (Required for ISSUE validation)
 
@@ -93,6 +95,43 @@ When using lookup columns in Power Automate flows:
 - To get the lookup value (PartNumber): `triggerBody()?['Part']?['Value']` or `triggerBody()?['Part_x003a_PartNumber']?['Value']`
 - To get additional fields (PartDescription): `triggerBody()?['Part_x003a_PartDescription']?['Value']`
 - For filtering by lookup: Use `Part/Id eq <id>` or `Part/PartNumber eq '<value>'` with `$expand=Part`
+
+### Setting Up Environment Variables (Required)
+
+All flows use Dataverse environment variables for configuration. Here's how to create them:
+
+1. **Navigate to Power Platform Admin Center**
+   - Go to https://admin.powerplatform.microsoft.com
+   - Select your environment
+
+2. **Create a Solution (if not already created)**
+   - In Power Apps, go to Solutions
+   - Click "New solution"
+   - Name: "Inventory Management System"
+   - Publisher: Select or create a publisher
+
+3. **Add Environment Variables to Solution**
+   - Inside your solution, click "New" → "More" → "Environment variable"
+   - Create two variables:
+
+   **Variable 1: SharePointSiteUrl**
+   - Display name: SharePoint Site URL
+   - Schema name: new_SharePointSiteUrl (auto-generated)
+   - Data type: Text
+   - Current value: Your SharePoint site URL (e.g., https://yourcompany.sharepoint.com/sites/Inventory)
+   
+   **Variable 2: AdminEmail**
+   - Display name: Admin Email
+   - Schema name: new_AdminEmail (auto-generated)
+   - Data type: Text
+   - Current value: Your admin email or distribution list (e.g., inventory-alerts@yourcompany.com)
+
+4. **Using Environment Variables in Flows**
+   - In expressions, use: `environment('new_SharePointSiteUrl')` (use the schema name, not display name)
+   - The flows in this guide use simplified names for clarity, but replace with your actual schema names
+   - Example: If your schema name is `cr123_SharePointSiteUrl`, use `environment('cr123_SharePointSiteUrl')`
+
+**Note**: Environment variables are environment-specific. When moving between Dev/Test/Prod, update the "Current value" for each environment without changing the flows.
 
 ### Phase 1: Core System (Build These First)
 
@@ -176,7 +215,7 @@ After building Phase 1, test with this sequence:
 
 | Problem | Solution |
 |---------|----------|
-| "Flow not triggering" | Verify trigger condition (use the one that matches your trigger output shape):<br/>`@equals(triggerOutputs()?['body/PostStatus'], 'Validated')`<br/>or (if PostStatus is an object):<br/>`@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')` |
+| "Flow not triggering" | Verify trigger condition (use the one that matches your trigger output shape):<br/>`@equals(triggerBody()?['PostStatus'], 'Validated')`<br/>or (if PostStatus is an object):<br/>`@equals(triggerBody()?['PostStatus']?['Value'], 'Validated')` |
 | "PostStatus not updating" | Check exact column name spelling and that it's a Choice column with correct values |
 | "Duplicate inventory rows" | Fix OData filter: `Part/Id eq @{variables('vPartId')} and Batch eq '@{variables('vBatch')}' and UOM eq '@{variables('vUOM')}'` |
 | "Negative inventory allowed" | Add condition in FLOW-03 Step 12: `greaterOrEquals(outputs('Compute_New_Qty'), 0)` to allow exact depletion |
