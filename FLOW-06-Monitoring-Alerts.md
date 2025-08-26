@@ -1042,6 +1042,75 @@ if(
 )
 ```
 
+## Error Handling Implementation
+
+### Global Error Handling Pattern
+
+Each monitoring flow should implement comprehensive error handling:
+
+#### Flow-Level Error Handling
+
+Add **"Scope"** action named **"Main Logic"** to wrap all primary flow actions.
+
+Add **"Scope"** action named **"Error Handler"** with run after settings:
+- Has failed: Yes
+- Is skipped: Yes  
+- Has timed out: Yes
+
+Inside Error Handler scope:
+
+```powerautomate
+Action: Initialize variable - ErrorDetails
+Name: vErrorDetails
+Type: String
+Value: @{result('Main_Logic')}
+
+Action: Create item - SharePoint
+List: Flow Error Log
+Fields:
+  Title: @{workflow()?['name']}
+  ErrorMessage: @{substring(string(variables('vErrorDetails')), 0, min(4000, length(string(variables('vErrorDetails')))))}
+  ItemID: @{coalesce(triggerBody()?['ID'], 'N/A')}
+  Timestamp: @{utcNow()}
+  FlowRunURL: {
+    "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
+    "Description": "View Error"
+  }
+
+Action: Send an email (V2)  
+To: @{environment('AdminEmail')}
+Subject: ⚠️ Monitoring Flow Error - @{workflow()?['name']}
+Body: 
+  Flow: @{workflow()?['name']}
+  Time: @{utcNow()}
+  Error: @{variables('vErrorDetails')}
+  
+Action: Terminate
+Status: Failed
+Message: @{concat('Monitoring error logged. Error ID: ', outputs('Create_item')?['body/ID'])}
+```
+
+#### Action-Level Error Handling
+
+For critical monitoring actions (API calls, data calculations):
+
+```powerautomate
+Configure run after for next action:
+- Has succeeded: Continue normally
+- Has failed: Log specific error and continue monitoring
+
+Example for Performance Metrics calculation:
+Action: Scope - Calculate Metrics
+  Try:
+    - Calculate average duration
+    - Calculate success rate
+    - Calculate throughput
+  Catch:
+    - Set default values
+    - Log calculation error
+    - Continue with available data
+```
+
 ## Troubleshooting Guide
 
 ### Alert Not Firing

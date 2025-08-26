@@ -84,10 +84,22 @@ Recommended types/formatting:
   - Example (display in Eastern time): `@{convertTimeZone(utcNow(), 'UTC', 'Eastern Standard Time')}`
 - `LastMovementType`, `LastMovementRefId`: Single line of text.
 - Flow Error Log → `ItemID`: Single line of text; `Timestamp`: Date and Time (UTC); `FlowRunURL`: Hyperlink (recommended); `Title`: Single line of text (flow name); `ErrorMessage`: Multiple lines of text (plain text, no HTML formatting - preserves full error payloads and stack traces).
-  - Writing `FlowRunURL` (SharePoint connector): supply an object
-    `{ "Url": "@{variables('vRunUrl')}", "Description": "Run details" }`
-  - Writing via SharePoint REST: use SP.FieldUrlValue shape (nometadata payload omits `__metadata`):
-    `{ "FlowRunURL": { "Url": "@{variables('vRunUrl')}", "Description": "Run details" } }`
+  - **Setting Hyperlink fields (SharePoint connector):** Pass a JSON object with Url and Description:
+    ```json
+    {
+      "Url": "@{variables('vRunUrl')}",
+      "Description": "View Flow Run"
+    }
+    ```
+  - **Setting Hyperlink fields (SharePoint REST):** Use SP.FieldUrlValue shape (nometadata payload omits `__metadata`):
+    ```json
+    { 
+      "FlowRunURL": { 
+        "Url": "@{variables('vRunUrl')}", 
+        "Description": "View Flow Run" 
+      } 
+    }
+    ```
 
 ### Required Environment Variables (Dataverse)
 

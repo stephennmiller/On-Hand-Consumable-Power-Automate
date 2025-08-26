@@ -25,7 +25,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 |-------------|------|----------|
 | Title | Single line of text | Default column (can be used for display name) |
 | PartNumber | Single line of text | Required, Indexed, Enforce unique values |
-| PartDescription | Single line of text | Required |
+| PartDescription | Single line of text | Required, Max length: 255 |
 | DefaultUOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc. (Required) |
 | Category | Choice | Optional (e.g., Electronics, Hardware, Consumables) |
 | MinStockLevel | Number | Optional, Default: 0 |

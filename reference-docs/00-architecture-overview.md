@@ -12,8 +12,8 @@ Create a SharePoint list named **"Parts Master"** with these columns:
 
 | Column Name | Type | Settings |
 |------------|------|----------|
-| PartNumber | Single line of text | Required, Indexed |
-| Description | Single line of text | Optional |
+| PartNumber | Single line of text | Required, Indexed, Enforce unique values |
+| PartDescription | Single line of text | Required, Max length: 255 |
 | MaterialType | Choice/Single line of text | Optional |
 | UOM | Choice | Required (Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc.) |
 | IsActive | Yes/No | Default: Yes |
@@ -61,9 +61,9 @@ Create a SharePoint list named **"On-Hand Material"** with these columns:
 | LastMovementType | Single line of text | Optional |
 | LastMovementRefId | Single line of text | Optional |
 | IsActive | Yes/No | Default: Yes |
-| OHKey | Single line of text | Enforce unique values, Indexed |
+| CompositeKey | Single line of text | Enforce unique values, Indexed |
 
-**Important:** The OHKey field must be populated by flows using this formula:
+**Important:** The CompositeKey field must be populated by flows using this formula:
 ```powerautomate
 concat(
   toUpper(trim(coalesce(variables('vPartNumber'), ''))),
@@ -73,7 +73,7 @@ concat(
   toUpper(trim(coalesce(variables('vUOM'), '')))
 )
 ```
-**Note**: Always normalize with trim/uppercase before concatenation to avoid duplicate keys from casing/spacing differences. Since UOM is a Choice, it returns a string value (e.g., 'EA') which is perfect for the composite key. This ensures composite uniqueness for Part+Batch+UOM combinations. All flows MUST populate OHKey when creating/updating On-Hand records.
+**Note**: Always normalize with trim/uppercase before concatenation to avoid duplicate keys from casing/spacing differences. Since UOM is a Choice, it returns a string value (e.g., 'EA') which is perfect for the composite key. This ensures composite uniqueness for Part+Batch+UOM combinations. All flows MUST populate CompositeKey when creating/updating On-Hand records.
 
 ### 5. Flow Error Log (Monitoring)
 

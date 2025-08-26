@@ -367,7 +367,13 @@ Add **"Create item - SharePoint"** action:
 - Fields:
   - Title: `TT - Intake Validate`
   - ErrorMessage: `@{concat('Error validating transaction ID: ', triggerBody()?['ID'], ' - ', substring(string(result('Try_-_Main_Logic')),0,min(4000,length(string(result('Try_-_Main_Logic'))))))}`
-  - FlowRunURL: `@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', variables('vFlowRunId'))}`
+  - FlowRunURL: 
+    ```json
+    {
+      "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', variables('vFlowRunId'))}",
+      "Description": "View Flow Run"
+    }
+    ```
   - ItemID: `@{triggerBody()?['ID']}`
   - Timestamp: `utcNow()`
 
