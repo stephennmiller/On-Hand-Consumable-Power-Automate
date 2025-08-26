@@ -54,7 +54,7 @@ Inside the Try scope, add 8 **"Initialize variable"** actions:
 - **Value:**
 
 ```powerautomate
-toUpper(coalesce(triggerBody()?['TransactionType'], ''))
+toUpper(trim(coalesce(triggerBody()?['TransactionType'], '')))
 ```
 
 #### Variable 2: vPO
@@ -64,17 +64,27 @@ toUpper(coalesce(triggerBody()?['TransactionType'], ''))
 - **Value:**
 
 ```powerautomate
-trim(coalesce(triggerBody()?['PONumber'], ''))
+trim(coalesce(triggerBody()?['PO']?['Value'], ''))
 ```
 
-#### Variable 3: vPart
+#### Variable 3: vPartNumber
 
-- **Name:** vPart
+- **Name:** vPartNumber
 - **Type:** String
 - **Value:**
 
 ```powerautomate
-trim(coalesce(triggerBody()?['PartNumber'], ''))
+trim(coalesce(triggerBody()?['Part']?['Value'], ''))
+```
+
+#### Variable 3a: vPartId
+
+- **Name:** vPartId
+- **Type:** Integer
+- **Value:**
+
+```powerautomate
+int(coalesce(triggerBody()?['Part']?['Id'], 0))
 ```
 
 #### Variable 4: vBatch
@@ -97,17 +107,7 @@ trim(coalesce(triggerBody()?['Batch'], ''))
 trim(coalesce(triggerBody()?['UOM'], ''))
 ```
 
-#### Variable 6: vLoc
-
-- **Name:** vLoc
-- **Type:** String
-- **Value:**
-
-```powerautomate
-trim(coalesce(triggerBody()?['Location'], ''))
-```
-
-#### Variable 7: vQty
+#### Variable 6: vQty
 
 - **Name:** vQty
 - **Type:** Float
@@ -117,7 +117,7 @@ trim(coalesce(triggerBody()?['Location'], ''))
 float(coalesce(triggerBody()?['Qty'], 0))
 ```
 
-#### Variable 8: vFlowRunId
+#### Variable 7: vFlowRunId
 
 - **Name:** vFlowRunId
 - **Type:** String
@@ -140,11 +140,13 @@ Add **"Get items - SharePoint"** action:
 - Filter Query:
 
 ```powerautomate
-PartNumber eq '@{replace(variables('vPart'),'''','''''')}' and Batch eq '@{replace(variables('vBatch'),'''','''''')}' and Qty ge @{sub(float(variables('vQty')), 0.01)} and Qty le @{add(float(variables('vQty')), 0.01)} and Created ge '@{formatDateTime(addMinutes(utcNow(), -1), 'yyyy-MM-ddTHH:mm:ssZ')}' and ID ne @{triggerBody()?['ID']}
+Part/Id eq @{variables('vPartId')} and Batch eq '@{replace(variables('vBatch'),'''','''''')}' and UOM eq '@{replace(variables('vUOM'),'''','''''')}' and Qty ge @{sub(float(variables('vQty')), 0.01)} and Qty le @{add(float(variables('vQty')), 0.01)} and Created ge '@{formatDateTime(addMinutes(utcNow(), -1), 'yyyy-MM-ddTHH:mm:ssZ')}' and ID ne @{triggerBody()?['ID']}
 ```
 
 - Top Count: 1
-- **Select Query:** `ID,PartNumber,Batch,Qty,Created`
+- **Select Query:** `ID,Part,Batch,UOM,Qty,Created`
+- **Expand Query:** `Part`
+- **Order By:** `Created desc`
 
 **Add Condition:** "Is Duplicate?"
 
@@ -218,12 +220,12 @@ Add **"Condition"** action:
 - Paste:
 
 ```powerautomate
-@greater(length(variables('vPart')), 0)
+@greater(variables('vPartId'), 0)
 ```
 
 **If No:**
 
-- Update item with PostMessage: `PartNumber is required`
+- Update item with PostMessage: `Part is required`
 - Terminate
 
 ### Step 8: Validate Batch

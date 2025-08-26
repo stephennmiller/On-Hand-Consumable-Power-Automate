@@ -1,6 +1,12 @@
 # Private planning documents
 VISION-*.md
 
+# Documentation work files and validation
+doc-work/
+
+# Claude Code configuration
+.claude/
+
 # OS generated files
 .DS_Store
 Thumbs.db

@@ -6,16 +6,16 @@ This system implements a robust inventory tracking solution using Power Automate
 
 ## SharePoint Lists Setup
 
-### 1. Parts List (Master Data)
+### 1. Parts Master List (Master Data)
 
-Create a SharePoint list named **"Parts"** with these columns:
+Create a SharePoint list named **"Parts Master"** with these columns:
 
 | Column Name | Type | Settings |
 |------------|------|----------|
 | PartNumber | Single line of text | Required, Indexed |
 | Description | Single line of text | Optional |
 | MaterialType | Choice/Single line of text | Optional |
-| UOM | Single line of text | Required |
+| UOM | Choice | Required (Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc.) |
 | IsActive | Yes/No | Default: Yes |
 
 ### 2. PO List (Purchase Orders)
@@ -36,13 +36,12 @@ Create a SharePoint list named **"Tech Transactions"** with these columns:
 
 | Column Name | Type | Settings |
 |------------|------|----------|
-| TransactionType | Choice | Choices: Issue, Receive (Required) |
-| PONumber | Single line of text | Conditionally Required |
-| PartNumber | Single line of text | Required |
+| TransactionType | Choice | Choices: RECEIVE, ISSUE, RETURNED (Required) |
+| PO | Lookup | Optional (Required for ISSUE/RETURNED), Source: PO List, Show: PONumber |
+| Part | Lookup | Required, Source: Parts Master, Show: PartNumber |
 | Batch | Single line of text | Required |
 | Qty | Number | Required, Min: 0 |
-| UOM | Single line of text | Required |
-| Location | Single line of text | Optional |
+| UOM | Choice | Required (Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc.) |
 | PostStatus | Single line of text | Hidden from forms, Default: blank |
 | PostMessage | Multiple lines of text | Hidden from forms |
 | PostedAt | Date and Time | Hidden from forms |
@@ -54,10 +53,9 @@ Create a SharePoint list named **"On-Hand Material"** with these columns:
 
 | Column Name | Type | Settings |
 |------------|------|----------|
-| PartNumber | Single line of text | Required, Indexed |
+| Part | Lookup | Required, Source: Parts Master, Show: PartNumber |
 | Batch | Single line of text | Required, Indexed |
-| Location | Single line of text | Optional |
-| UOM | Single line of text | Required |
+| UOM | Choice | Required (Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc.) |
 | OnHandQty | Number | Default: 0 |
 | LastMovementAt | Date and Time | Optional |
 | LastMovementType | Single line of text | Optional |
@@ -72,10 +70,10 @@ concat(
   '|',
   toUpper(trim(coalesce(variables('vBatch'), ''))),
   '|',
-  toUpper(trim(coalesce(variables('vLocation'), '')))
+  toUpper(trim(coalesce(variables('vUOM'), '')))
 )
 ```
-This ensures composite uniqueness for Part+Batch+Location combinations. All flows MUST populate OHKey when creating/updating On-Hand records.
+**Note**: Always normalize with trim/uppercase before concatenation to avoid duplicate keys from casing/spacing differences. Since UOM is a Choice, it returns a string value (e.g., 'EA') which is perfect for the composite key. This ensures composite uniqueness for Part+Batch+UOM combinations. All flows MUST populate OHKey when creating/updating On-Hand records.
 
 ### 5. Flow Error Log (Monitoring)
 
@@ -86,7 +84,7 @@ Create a SharePoint list named **"Flow Error Log"** with these columns:
 | FlowName | Single line of text | Required |
 | ErrorMessage | Multiple lines of text | Required |
 | StackTrace | Multiple lines of text | Optional |
-| RecordId | Single line of text | Optional |
+| ItemID | Single line of text | Optional |
 | Severity | Choice | Critical, Warning, Info |
 | Timestamp | Date and Time | Required |
 | ResolvedAt | Date and Time | Optional |
@@ -123,7 +121,7 @@ All flows should use these connection references:
 ### Key Concepts
 
 - **Additive Model**: Each transaction is recorded as a movement
-- **Aggregated Inventory**: On-Hand Material stores one row per Part+Batch+Location
+- **Aggregated Inventory**: On-Hand Material stores one row per Part+Batch+UOM
 - **Transaction Math**:
   - RECEIVE: Adds quantity to OnHandQty
   - ISSUE: Subtracts quantity from OnHandQty

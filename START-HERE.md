@@ -40,14 +40,15 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | TechName | Person or Group | Required, Allow single selection |
 | TransactionType | Choice | Choices: RECEIVE, ISSUE, RETURNED (Required) |
 | Part | Lookup | Required, Allow single selection, Source: Parts Master, Show: PartNumber, Additional fields: PartDescription, DefaultUOM |
+| Description | Single line of text | Optional (auto-populated by Flow-04) |
 | Batch | Single line of text | Required |
 | UOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc. (Optional, defaults from Part) |
 | PO | Lookup | Optional (Required for ISSUE/RETURNED), Allow single selection, Source: PO List, Show: PONumber |
 | Qty | Number | Required, Min: 0.01, Decimal places: 2 |
 | PostStatus | Choice | Choices: New, Validated, Processing, Posted, Error (Default: New) |
-| ProcessingLock | Single line of text | Optional (for concurrency) |
 | PostMessage | Multiple lines of text | Optional (status messages) |
 | ErrorMessage | Multiple lines of text | Optional (legacy/compatibility) |
+| PostedAt | Date and Time | Optional (UTC timestamp when posted) |
 
 #### On-Hand Material List
 
@@ -62,9 +63,8 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | LastMovementAt | Date and Time | Optional |
 | LastMovementType | Single line of text | Optional |
 | LastMovementRefId | Single line of text | Optional |
-| ProcessingLock | Single line of text | Optional (for concurrency) |
 
-**Performance Note**: Consider adding a computed column `Key` with formula `=[Part:PartNumber]&"|"&[Batch]&"|"&[UOM]` and indexing it for faster lookups. This creates a unique composite key for each inventory record.
+**Performance Note**: Consider adding a single line text column `CompositeKey` (indexed) that flows populate with normalized key: `concat(toUpper(trim(coalesce(variables('vPartNumber'), ''))),'|',toUpper(trim(coalesce(variables('vBatch'), ''))),'|',toUpper(trim(coalesce(variables('vUOM'), ''))))`. Always normalize with trim/uppercase before concatenation to avoid duplicate keys from casing/spacing differences. Since UOM is a Choice, it returns a string value (e.g., 'EA') which is perfect for the composite key.
 
 #### Flow Error Log List
 
@@ -89,7 +89,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 ### Important Notes on Lookup Columns in Power Automate
 
 When using lookup columns in Power Automate flows:
-- To get the lookup ID: `triggerBody()?['Part']?['Id']` or `triggerBody()?['PartId']?['Value']`
+- To get the lookup ID: `triggerBody()?['Part']?['Id']` or `int(triggerBody()?['PartId'])`
 - To get the lookup value (PartNumber): `triggerBody()?['Part']?['Value']` or `triggerBody()?['Part_x003a_PartNumber']?['Value']`
 - To get additional fields (PartDescription): `triggerBody()?['Part_x003a_PartDescription']?['Value']`
 - For filtering by lookup: Use `Part/Id eq <id>` or `Part/PartNumber eq '<value>'` with `$expand=Part`
@@ -161,7 +161,7 @@ After building Phase 1, test with this sequence:
 
 3. **Test Concurrent Processing**: Create 5 transactions rapidly
    - Verify all process correctly without conflicts
-   - Check ProcessingLock prevents race conditions
+   - Check ETag-based optimistic locking prevents race conditions
 
 4. **Test Invalid Data**: Create transaction with negative quantity
    - Verify validation catches error
@@ -178,7 +178,7 @@ After building Phase 1, test with this sequence:
 |---------|----------|
 | "Flow not triggering" | Verify trigger condition (use the one that matches your trigger output shape):<br/>`@equals(triggerOutputs()?['body/PostStatus'], 'Validated')`<br/>or (if PostStatus is an object):<br/>`@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')` |
 | "PostStatus not updating" | Check exact column name spelling and that it's a Choice column with correct values |
-| "Duplicate inventory rows" | Fix OData filter: `Part/PartNumber eq '@{variables('PartNumber')}' and Batch eq '@{variables('Batch')}'` (use $expand=Part) |
+| "Duplicate inventory rows" | Fix OData filter: `Part/Id eq @{variables('vPartId')} and Batch eq '@{variables('vBatch')}' and UOM eq '@{variables('vUOM')}'` |
 | "Negative inventory allowed" | Add condition in FLOW-03 Step 12: `greaterOrEquals(outputs('Compute_New_Qty'), 0)` to allow exact depletion |
 | "ETag mismatch errors" | Ensure using `outputs('Get_inventory_record')?['body/@odata.etag']` in Update item |
 
