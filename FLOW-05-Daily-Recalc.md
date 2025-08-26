@@ -548,6 +548,14 @@ div(
 
 ## Error Handling Patterns
 
+**Note on Flow Error Log**: This scheduled flow uses checkpoint-based error tracking and circuit breaker patterns rather than the Flow Error Log list used by transaction-triggered flows. Errors are tracked via:
+- Checkpoint status updates with error metadata
+- Circuit breaker state management
+- Email notifications to administrators
+- Performance metrics logging
+
+This approach is more suitable for batch processing workflows where individual transaction IDs don't apply.
+
 ### Pattern 1: Retry with Exponential Backoff
 
 ```json

@@ -341,6 +341,13 @@ Add **"Create item - SharePoint"** action:
   - ItemID: `@{variables('vId')}`
   - ErrorMessage: `@{string(result('Transaction_-_Receive_Processing'))}`
   - Timestamp: `utcNow()`
+  - FlowRunURL:
+    ```json
+    {
+      "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
+      "Description": "View Flow Run"
+    }
+    ```
 
 ##### Update Transaction with Error
 

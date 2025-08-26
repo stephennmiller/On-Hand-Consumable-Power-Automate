@@ -127,24 +127,41 @@ All flows use Dataverse environment variables for configuration. Here's how to c
 
 3. **Add Environment Variables to Solution**
    - Inside your solution, click "New" → "More" → "Environment variable"
-   - Create two variables:
+   - Create the following variables:
 
-   **Variable 1: SharePointSiteUrl**
+   **Variable 1: SharePointSiteUrl** (Required)
    - Display name: SharePoint Site URL
-   - Schema name: new_SharePointSiteUrl (auto-generated)
+   - Schema name: new_SharePointSiteUrl (auto-generated, note your actual prefix)
    - Data type: Text
    - Current value: Your SharePoint site URL (e.g., https://yourcompany.sharepoint.com/sites/Inventory)
    
-   **Variable 2: AdminEmail**
+   **Variable 2: AdminEmail** (Required)
    - Display name: Admin Email
-   - Schema name: new_AdminEmail (auto-generated)
+   - Schema name: new_AdminEmail (auto-generated, note your actual prefix)
    - Data type: Text
    - Current value: Your admin email or distribution list (e.g., inventory-alerts@yourcompany.com)
 
+   **Variable 3: SignalRConnection** (Optional - only for real-time dashboard)
+   - Display name: SignalR Connection String
+   - Schema name: new_SignalRConnection (auto-generated, note your actual prefix)
+   - Data type: Text (or Secret for production)
+   - Current value: Your Azure SignalR connection string (if using real-time features)
+   - Note: Only needed if implementing real-time dashboard updates in FLOW-06
+
 4. **Using Environment Variables in Flows**
-   - In expressions, use: `environment('new_SharePointSiteUrl')` (use the schema name, not display name)
-   - The flows in this guide use simplified names for clarity, but replace with your actual schema names
-   - Example: If your schema name is `cr123_SharePointSiteUrl`, use `environment('cr123_SharePointSiteUrl')`
+   - In expressions, use the schema name with environment() function
+   - **Important**: Schema names include auto-generated prefixes based on your solution publisher
+   - Common patterns:
+     - Default publisher: `environment('new_SharePointSiteUrl')`
+     - Custom publisher: `environment('cr123_SharePointSiteUrl')` 
+     - With underscores: `environment('contoso_SharePointSiteUrl')`
+   
+   **Schema Name Mapping Guide** (replace with your actual schema names):
+   | Documentation Reference | Your Schema Name (Example) | Expression to Use |
+   |------------------------|---------------------------|-------------------|
+   | SharePointSiteUrl | new_SharePointSiteUrl | `environment('new_SharePointSiteUrl')` |
+   | AdminEmail | new_AdminEmail | `environment('new_AdminEmail')` |
+   | SignalRConnection | new_SignalRConnection | `environment('new_SignalRConnection')` |
 
 **Note**: Environment variables are environment-specific. When moving between Dev/Test/Prod, update the "Current value" for each environment without changing the flows.
 

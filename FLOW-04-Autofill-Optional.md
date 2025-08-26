@@ -224,7 +224,7 @@ Add **"Create item - SharePoint"** action:
     ```json
     {
       "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
-      "Description": "View Error"
+      "Description": "View Flow Run"
     }
     ```
 

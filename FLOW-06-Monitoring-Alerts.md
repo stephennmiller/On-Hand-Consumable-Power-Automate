@@ -873,12 +873,15 @@ Body:
 }
 ```
 
-#### Step 4: Send WebSocket Update (for real-time display)
+#### Step 4: Send WebSocket Update (Optional - for real-time display)
+
+**Note**: This step requires Azure SignalR Service. Skip if not using real-time dashboard updates.
 
 ```
 Action: Send message to Azure SignalR
 Connection String: @{environment('SignalRConnection')}
    Note: Replace 'SignalRConnection' with your actual environment variable schema name
+   Prerequisites: Create SignalRConnection environment variable as described in START-HERE.md
 Hub Name: DashboardHub
 Target: updateMetric
 Arguments:
@@ -1093,10 +1096,13 @@ Fields:
   ErrorMessage: @{substring(string(variables('vErrorDetails')), 0, min(4000, length(string(variables('vErrorDetails')))))}
   ItemID: @{coalesce(triggerBody()?['ID'], 'N/A')}
   Timestamp: @{utcNow()}
-  FlowRunURL: {
-    "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
-    "Description": "View Error"
-  }
+  FlowRunURL:
+    ```json
+    {
+      "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
+      "Description": "View Flow Run"
+    }
+    ```
 
 Action: Send an email (V2)  
 To: @{environment('AdminEmail')}

@@ -553,6 +553,13 @@ Add **"Create item - SharePoint"** action:
   - ItemID: `@{variables('vId')}`
   - ErrorMessage: `Rollback executed for transaction @{variables('vId')}`
   - Timestamp: `utcNow()`
+  - FlowRunURL:
+    ```json
+    {
+      "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
+      "Description": "View Flow Run"
+    }
+    ```
 
 #### Step 16b: Always Execute - Error Logging (Outside the condition)
 
@@ -567,6 +574,13 @@ Add **"Create item - SharePoint"** action:
   - ItemID: `@{variables('vId')}`
   - ErrorMessage: `@{string(result('Atomic_Transaction_-_Issue_Processing'))}`
   - Timestamp: `utcNow()`
+  - FlowRunURL:
+    ```json
+    {
+      "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
+      "Description": "View Flow Run"
+    }
+    ```
 
 ##### Update Transaction with Error
 
