@@ -114,8 +114,8 @@ Action: Send an HTTP request to SharePoint
 Method: GET
 Uri: _api/web/lists/getbytitle('Flow Run History')/items?$filter=Created ge datetime'@{addMinutes(utcNow(), mul(-1, variables('MetricsWindow')))}'&$top=1000&$orderby=Created desc
 Headers:
-  Accept: application/json;odata=verbose
-  Content-Type: application/json;odata=verbose
+  Accept: application/json;odata=nometadata
+  Content-Type: application/json;odata=nometadata
 ```
 
 #### Step 3: Parse and Analyze Performance Data
@@ -195,12 +195,11 @@ Action: Send an HTTP request to SharePoint
 Method: POST
 Uri: _api/web/lists/getbytitle('Performance Metrics')/items
 Headers:
-  Accept: application/json;odata=verbose
-  Content-Type: application/json;odata=verbose
+  Accept: application/json;odata=nometadata
+  Content-Type: application/json;odata=nometadata
   X-RequestDigest: @{body('Get_Form_Digest')['d']['GetContextWebInformation']['FormDigestValue']}
 Body:
 {
-  "__metadata": {"type": "SP.Data.PerformanceMetricsListItem"},
   "Title": "Metrics @{utcNow()}",
   "FlowName": "All Flows",
   "StartTime": "@{addMinutes(utcNow(), mul(-1, variables('MetricsWindow')))}",

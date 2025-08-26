@@ -83,7 +83,7 @@ Recommended types/formatting:
   - Note: SharePoint list views may display in the site's local timezone; configure the column as "Include time" and be mindful of regional settings when validating timestamps.
   - Example (display in Eastern time): `@{convertTimeZone(utcNow(), 'UTC', 'Eastern Standard Time')}`
 - `LastMovementType`, `LastMovementRefId`: Single line of text.
-- Flow Error Log → `ItemID`: Number; `Timestamp`: Date and Time (UTC); `FlowRunURL`: Hyperlink (recommended); `Title`: Single line of text (flow name); `ErrorMessage`: Multiple lines of text (plain text, no HTML formatting - preserves full error payloads and stack traces).
+- Flow Error Log → `ItemID`: Single line of text; `Timestamp`: Date and Time (UTC); `FlowRunURL`: Hyperlink (recommended); `Title`: Single line of text (flow name); `ErrorMessage`: Multiple lines of text (plain text, no HTML formatting - preserves full error payloads and stack traces).
   - Writing `FlowRunURL` (SharePoint connector): supply an object
     `{ "Url": "@{variables('vRunUrl')}", "Description": "Run details" }`
   - Writing via SharePoint REST: use SP.FieldUrlValue shape (nometadata payload omits `__metadata`):
