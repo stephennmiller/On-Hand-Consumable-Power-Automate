@@ -253,9 +253,9 @@ Parse JSON Schema:
         "type": "object",
         "properties": {
           "ID": {"type": "integer"},
-          "ItemNumber": {"type": "string"},
-          "ActionType": {"type": "string"},
-          "QuantityChange": {"type": "number"},
+          "PartId": {"type": "integer"},
+          "TransactionType": {"type": "string"},
+          "Qty": {"type": "number"},
           "ProcessedStatus": {"type": "string"}
         }
       }
@@ -292,7 +292,7 @@ Inside Apply to each:
   @{
     filter(
       variables('AggregationData'),
-      item => item['ItemNumber'] == items('Apply_to_each')?['ItemNumber']
+      item => item['PartId'] == items('Apply_to_each')?['PartId']
     )
   }
   
@@ -306,9 +306,9 @@ Inside Apply to each:
     Body: {
       "Quantity": @{add(
         first(outputs('Check_existing'))?['Quantity'],
-        if(equals(items('Apply_to_each')?['ActionType'], 'Issue'),
-          mul(items('Apply_to_each')?['QuantityChange'], -1),
-          items('Apply_to_each')?['QuantityChange']
+        if(equals(items('Apply_to_each')?['TransactionType'], 'ISSUE'),
+          mul(items('Apply_to_each')?['Qty'], -1),
+          items('Apply_to_each')?['Qty']
         )
       )}
     }
@@ -520,14 +520,14 @@ Rows: @{outputs('Performance_Metrics')}
 
 ```
 if(
-  equals(item()?['ActionType'], 'Issue'),
-  mul(item()?['QuantityChange'], -1),
+  equals(item()?['TransactionType'], 'ISSUE'),
+  mul(item()?['Qty'], -1),
   if(
-    equals(item()?['ActionType'], 'Receipt'),
-    item()?['QuantityChange'],
+    equals(item()?['TransactionType'], 'RECEIVE'),
+    item()?['Qty'],
     if(
-      equals(item()?['ActionType'], 'Adjustment'),
-      item()?['QuantityChange'],
+      equals(item()?['TransactionType'], 'RETURNED'),
+      item()?['Qty'],
       0
     )
   )
