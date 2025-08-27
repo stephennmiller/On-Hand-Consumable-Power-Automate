@@ -55,6 +55,7 @@ Columns:
 Columns:
 - Title: Single line of text
 - AlertType: Choice (Error, Performance, Threshold, Health)
+- MetricName: Single line of text (e.g., SuccessRate, AverageDuration, Throughput)
 - FlowName: Single line of text
 - ThresholdValue: Number
 - ThresholdOperator: Choice (Greater, Less, Equal, GreaterEqual, LessEqual)
@@ -194,7 +195,6 @@ Uri: _api/web/lists/getbytitle('Performance Metrics')/items
 Headers:
   Accept: application/json;odata=nometadata
   Content-Type: application/json;odata=nometadata
-  X-RequestDigest: @{body('Get_Form_Digest')['d']['GetContextWebInformation']['FormDigestValue']}
 Body:
 {
   "Title": "Metrics @{utcNow()}",
