@@ -99,6 +99,7 @@ Recommended types/formatting:
       } 
     }
     ```
+  - **Note**: When reading via the SharePoint connector, Hyperlink fields return an object with `Url` and `Description`. Ensure the field name (`FlowRunURL` here) matches your column's internal name.
 
 ### Required Environment Variables (Dataverse)
 

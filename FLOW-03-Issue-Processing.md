@@ -435,7 +435,7 @@ Add **"Send an HTTP request to SharePoint"** action:
   "Title": "@{variables('vOriginalTitle')}",
   "OnHandQty": @{outputs('Compute_New_Qty')},
   "LastMovementAt": "@{utcNow()}",
-  "LastMovementType": "Issue",
+  "LastMovementType": "@{if(equals(toUpper(trim(coalesce(triggerBody()?['TransactionType'], ''))), 'RETURNED'), 'Returned', 'Issue')}",
   "LastMovementRefId": "@{variables('vId')}",
   "IsActive": @{if(greater(outputs('Compute_New_Qty'), 0), true, false)}
 }
