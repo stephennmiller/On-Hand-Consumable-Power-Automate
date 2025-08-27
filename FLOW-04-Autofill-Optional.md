@@ -229,7 +229,7 @@ Add **"Create item - SharePoint"** action:
     ```
 
 **Settings:**
-  - Configure run after: Set to run even if previous action fails
+- Configure run after: Set to run even if previous action fails
 
 #### Step 9c: Continue Processing (Non-Critical)
 

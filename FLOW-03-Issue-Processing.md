@@ -61,11 +61,11 @@ Processes validated ISSUE and RETURNED transactions to remove inventory from the
 
 #### Part B: Configure Concurrency Control (CRITICAL)
 
-5. In the same Settings panel, under **"Concurrency Control"**:
+1. In the same Settings panel, under **"Concurrency Control"**:
    - Toggle to **On**
-   - Set **"Degree of Parallelism"** to **1** 
+   - Set **"Degree of Parallelism"** to **1**
    - **⚠️ CRITICAL:** This MUST be set to 1 to prevent race conditions and ensure inventory accuracy
-6. Click **"Done"** to save all trigger settings
+2. Click **"Done"** to save all trigger settings
 
 ### Step 3: Add Atomic Transaction Scope
 

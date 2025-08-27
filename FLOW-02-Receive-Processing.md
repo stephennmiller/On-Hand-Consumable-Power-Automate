@@ -51,7 +51,7 @@ Processes validated RECEIVE transactions to add inventory to the On-Hand Materia
 )
 ```
 
-5. Click **"Done"**
+1. Click **"Done"**
 
 ### Step 3: Configure Trigger Settings
 

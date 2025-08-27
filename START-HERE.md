@@ -85,7 +85,7 @@ This optimization can improve query performance in high-volume scenarios but is 
 
 **Note**: This is a separate list for flow errors. Tech Transactions uses PostMessage field for status updates.
 
-**FlowRunURL Implementation**: 
+**FlowRunURL Implementation**:
 - **Setting**: When using the SharePoint connector to set this Hyperlink field, pass a JSON object:
 ```json
 {
@@ -136,7 +136,7 @@ All flows use Dataverse environment variables for configuration. Here's how to c
    - Schema name: new_SharePointSiteUrl (auto-generated, note your actual prefix)
    - Data type: Text
    - Current value: Your SharePoint site URL (e.g., https://yourcompany.sharepoint.com/sites/Inventory)
-   
+
    **Variable 2: AdminEmail** (Required)
    - Display name: Admin Email
    - Schema name: new_AdminEmail (auto-generated, note your actual prefix)
@@ -155,10 +155,11 @@ All flows use Dataverse environment variables for configuration. Here's how to c
    - **Important**: Schema names include auto-generated prefixes based on your solution publisher
    - Common patterns:
      - Default publisher: `environment('new_SharePointSiteUrl')`
-     - Custom publisher: `environment('cr123_SharePointSiteUrl')` 
+     - Custom publisher: `environment('cr123_SharePointSiteUrl')`
      - With underscores: `environment('contoso_SharePointSiteUrl')`
-   
+
    **Schema Name Mapping Guide** (replace with your actual schema names):
+
    | Documentation Reference | Your Schema Name (Example) | Expression to Use |
    |------------------------|---------------------------|-------------------|
    | SharePointSiteUrl | new_SharePointSiteUrl | `environment('new_SharePointSiteUrl')` |
