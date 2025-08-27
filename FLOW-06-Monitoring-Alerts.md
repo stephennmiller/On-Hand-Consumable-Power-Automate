@@ -553,13 +553,15 @@ After the loop, add **"Compose"** actions:
 
 **Action: Compose_Queue_Length**
 ```powerautomate
-@{coalesce(body('Get_Queue_Status')?['ItemCount'], 0)}
+@{0}
 ```
+*Note: Replace with actual queue monitoring if available (e.g., Azure Service Bus, Logic Apps run queue)*
 
 **Action: Compose_Memory_Usage**
 ```powerautomate
-@{mul(div(body('Get_System_Metrics')?['MemoryUsed'], max(1, body('Get_System_Metrics')?['MemoryTotal'])), 100)}
+@{0}
 ```
+*Note: Replace with actual system metrics if available (e.g., Azure Monitor connector)*
 
 #### Step 4: Check Each Threshold
 
@@ -1133,12 +1135,10 @@ Fields:
   ItemID: @{coalesce(triggerBody()?['ID'], 'N/A')}
   Timestamp: @{utcNow()}
   FlowRunURL:
-    ```json
     {
       "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
       "Description": "View Flow Run"
     }
-    ```
 
 Action: Send an email (V2)  
 To: @{environment('AdminEmail')}

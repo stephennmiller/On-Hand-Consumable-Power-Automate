@@ -320,7 +320,7 @@ Inside Apply to each:
     Batch: @{coalesce(items('Apply_to_each')?['Batch'], 'DEFAULT')}
     UOM: @{coalesce(items('Apply_to_each')?['UOM'], 'EA')}
     Qty: @{
-      if(or(equals(items('Apply_to_each')?['TransactionType'], 'ISSUE'), equals(items('Apply_to_each')?['TransactionType'], 'RETURNED')),
+      if(equals(items('Apply_to_each')?['TransactionType'], 'ISSUE'),
         mul(items('Apply_to_each')?['Qty'], -1),
         items('Apply_to_each')?['Qty']
       )
@@ -350,7 +350,11 @@ Action: Apply to each aggregated item
 Source: @{body('Get_aggregated_data')?['value']}
 
   Action: Get items - On-Hand Material
-  Filter Query: Part/Id eq @{items('Apply_to_each')?['PartId']} and Batch eq '@{items('Apply_to_each')?['Batch']}' and UOM eq '@{items('Apply_to_each')?['UOM']}'
+  Filter Query: @{concat(
+    'Part/Id eq ', items('Apply_to_each')?['PartId'],
+    ' and Batch eq ''', replace(coalesce(items('Apply_to_each')?['Batch'], 'DEFAULT'), '''', ''''''), '''',
+    ' and UOM eq ''', replace(coalesce(items('Apply_to_each')?['UOM'], 'EA'), '''', ''''''), ''''
+  )}
   Top Count: 1
   
   Condition: Check if record exists
@@ -358,7 +362,7 @@ Source: @{body('Get_aggregated_data')?['value']}
   
   If Yes:
     Action: Update item
-    ID: @{first(body('Get_items')?['value'])?['Id']}
+    ID: @{first(body('Get_items')?['value'])?['ID']}
     OnHandQty: @{add(coalesce(first(body('Get_items')?['value'])?['OnHandQty'], 0), items('Apply_to_each')?['Qty'])}
 ```
 
