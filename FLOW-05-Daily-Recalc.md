@@ -230,11 +230,11 @@ Body: @{concat(
   '\r\nContent-Type: application/http',
   '\r\nContent-Transfer-Encoding: binary',
   '\r\n\r\nGET /_api/web/lists/getbytitle(''Tech Transactions'')/items?',
-  '$select=ID,Part,TransactionType,Qty,PostStatus&',
+  '$select=ID,PartId,TransactionType,Qty,PostStatus&',
   '$filter=ID gt ', variables('LastProcessedID'), ' and PostStatus eq ''Validated''&',
   '$top=', variables('BatchSize'), '&',
   '$orderby=ID asc HTTP/1.1',
-  '\r\nAccept: application/json',
+  '\r\nAccept: application/json;odata=nometadata',
   '\r\n\r\n--batch_boundary--'
 )}
 ```

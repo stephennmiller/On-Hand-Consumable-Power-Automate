@@ -216,23 +216,40 @@ List: Alert Configuration
 Filter: IsActive eq true and AlertType eq 'Performance'
 
 Action: Apply to each alert configuration
+  
+  Action: Compose_Current_Metric
+  Inputs:
+    @if(
+      equals(items('Apply_to_each')?['MetricName'], 'SuccessRate'),
+      outputs('Compose_Success_Rate'),
+      if(
+        equals(items('Apply_to_each')?['MetricName'], 'AverageDuration'),
+        outputs('Compose_Average_Duration'),
+        if(
+          equals(items('Apply_to_each')?['MetricName'], 'Throughput'),
+          outputs('Compose_Throughput'),
+          0
+        )
+      )
+    )
+  
   Condition: Check if threshold breached
   Expression: 
     @if(
       equals(items('Apply_to_each')?['ThresholdOperator'], 'Greater'),
-      greater(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+      greater(outputs('Compose_Current_Metric'), items('Apply_to_each')?['ThresholdValue']),
       if(
         equals(items('Apply_to_each')?['ThresholdOperator'], 'GreaterEqual'),
-        greaterOrEquals(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+        greaterOrEquals(outputs('Compose_Current_Metric'), items('Apply_to_each')?['ThresholdValue']),
         if(
           equals(items('Apply_to_each')?['ThresholdOperator'], 'Less'),
-          less(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+          less(outputs('Compose_Current_Metric'), items('Apply_to_each')?['ThresholdValue']),
           if(
             equals(items('Apply_to_each')?['ThresholdOperator'], 'LessEqual'),
-            lessOrEquals(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+            lessOrEquals(outputs('Compose_Current_Metric'), items('Apply_to_each')?['ThresholdValue']),
             if(
               equals(items('Apply_to_each')?['ThresholdOperator'], 'Equal'),
-              equals(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+              equals(outputs('Compose_Current_Metric'), items('Apply_to_each')?['ThresholdValue']),
               false
             )
           )
@@ -524,22 +541,22 @@ Inside the loop:
 
 After the loop, add **"Compose"** actions:
 
-**Average Processing Time:**
+**Action: Compose_Average_Processing_Time**
 ```powerautomate
 @{div(variables('vTotalDuration2'), max(variables('vItemCount2'), 1))}
 ```
 
-**Error Rate:**
+**Action: Compose_Error_Rate**
 ```powerautomate
 @{mul(div(variables('vFailedCount'), max(variables('vItemCount2'), 1)), 100)}
 ```
 
-**Queue Length:**
+**Action: Compose_Queue_Length**
 ```powerautomate
 @{coalesce(body('Get_Queue_Status')?['ItemCount'], 0)}
 ```
 
-**Memory Usage (percentage):**
+**Action: Compose_Memory_Usage**
 ```powerautomate
 @{mul(div(body('Get_System_Metrics')?['MemoryUsed'], max(1, body('Get_System_Metrics')?['MemoryTotal'])), 100)}
 ```
@@ -550,20 +567,20 @@ After the loop, add **"Compose"** actions:
 Action: Apply to each threshold rule
   Source: @{variables('ThresholdRules')}
   
-  Action: Compose current metric value
+  Action: Compose_Metric_Value
   Inputs:
     @if(
       equals(items('Apply_to_each')?['metric'], 'AverageProcessingTime'),
-      outputs('Compose_Average_Duration'),
+      outputs('Compose_Average_Processing_Time'),
       if(
         equals(items('Apply_to_each')?['metric'], 'ErrorRate'),
-        sub(100, outputs('Compose_Success_Rate')),
+        outputs('Compose_Error_Rate'),
         if(
-          equals(items('Apply_to_each')?['metric'], 'Throughput'),
-          outputs('Compose_Throughput'),
+          equals(items('Apply_to_each')?['metric'], 'QueueLength'),
+          outputs('Compose_Queue_Length'),
           if(
-            equals(items('Apply_to_each')?['metric'], 'TotalRecords'),
-            variables('vTotalRecords'),
+            equals(items('Apply_to_each')?['metric'], 'MemoryUsage'),
+            outputs('Compose_Memory_Usage'),
             0
           )
         )
@@ -574,16 +591,16 @@ Action: Apply to each threshold rule
   Expression:
     @if(
       equals(items('Apply_to_each')?['operator'], 'greater'),
-      greater(outputs('Compose_metric'), items('Apply_to_each')?['threshold']),
+      greater(outputs('Compose_Metric_Value'), items('Apply_to_each')?['threshold']),
       if(
         equals(items('Apply_to_each')?['operator'], 'greaterOrEquals'),
-        greaterOrEquals(outputs('Compose_metric'), items('Apply_to_each')?['threshold']),
+        greaterOrEquals(outputs('Compose_Metric_Value'), items('Apply_to_each')?['threshold']),
         if(
           equals(items('Apply_to_each')?['operator'], 'less'),
-          less(outputs('Compose_metric'), items('Apply_to_each')?['threshold']),
+          less(outputs('Compose_Metric_Value'), items('Apply_to_each')?['threshold']),
           if(
             equals(items('Apply_to_each')?['operator'], 'lessOrEquals'),
-            lessOrEquals(outputs('Compose_metric'), items('Apply_to_each')?['threshold']),
+            lessOrEquals(outputs('Compose_Metric_Value'), items('Apply_to_each')?['threshold']),
             false
           )
         )
