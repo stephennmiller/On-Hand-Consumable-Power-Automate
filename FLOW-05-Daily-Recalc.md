@@ -174,7 +174,7 @@ Set Variable - RunID:
 **If No:** Create new checkpoint
 ```json
 SharePoint - Create item:
-Site Address: [Your SharePoint Site]
+Site Address: `@{environment('SharePointSiteUrl')}`
 List Name: Checkpoint State
 Title: @{concat('Recalc_', utcNow('yyyy-MM-dd_HH-mm'))}
 RunID: @{variables('RunID')}
@@ -193,7 +193,7 @@ Metadata: {"source":"optimized_recalc","version":"2.0"}
 
 ```json
 SharePoint - Get items:
-Site Address: [Your SharePoint Site]
+Site Address: `@{environment('SharePointSiteUrl')}`
 List Name: Circuit Breaker
 Filter Query: ServiceName eq 'SharePointBatch'
 ```
@@ -221,7 +221,7 @@ Set Variable - ProcessingStatus: "CircuitOpen"
 
 ```json
 Send an HTTP request to SharePoint:
-Site Address: [Your SharePoint Site]
+Site Address: `@{environment('SharePointSiteUrl')}`
 Method: POST
 Uri: _api/$batch
 Headers: {
@@ -474,7 +474,7 @@ Inside Scope:
     )}
   
   Send notification:
-    To: [Admin Email]
+    To: `@{environment('AdminEmail')}`
     Subject: Recalc Flow Error - Circuit Breaker Activated
     Body: Error details and recovery instructions
 ```
