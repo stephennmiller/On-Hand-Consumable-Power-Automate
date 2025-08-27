@@ -152,7 +152,7 @@ Add **"Delay"** action:
 - Count: 100
 - Unit: Millisecond
 
-**Rationale**: This small delay helps prevent SharePoint API throttling when multiple transactions arrive simultaneously. The 100ms delay is negligible for users but helps distribute API calls, reducing the chance of hitting SharePoint's rate limits (600 calls/minute per flow). This is especially important since this flow has concurrency set to 1, meaning transactions queue up and could hit the API rapidly in succession.
+**Rationale**: This small delay helps prevent SharePoint API throttling when multiple transactions arrive simultaneously. The 100ms delay is negligible for users but helps distribute API calls, reducing the chance of hitting SharePoint's rate limits (600 calls/minute per flow). This is especially important since this flow has concurrency set to 1, meaning transactions queue up and could hit the API rapidly in sequence.
 
 ### Step 6: Get and Lock On-Hand Row
 

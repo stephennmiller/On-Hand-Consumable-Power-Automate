@@ -79,19 +79,21 @@ This optimization can improve query performance in high-volume scenarios but is 
 |-------------|------|----------|
 | Title | Single line of text | Flow name that encountered the error |
 | ErrorMessage | Multiple lines of text | Required, full error details and stack trace |
-| FlowRunURL | Hyperlink | Optional, link to view flow run (see note below) |
+| FlowRunURL | Hyperlink or Picture (format: Hyperlink) | Optional, link to view flow run (see note below) |
 | ItemID | Single line of text | Optional, ID of source transaction that failed |
 | Timestamp | Date and Time | Required, when error occurred (UTC) |
 
 **Note**: This is a separate list for flow errors. Tech Transactions uses PostMessage field for status updates.
 
-**FlowRunURL Implementation**: When using the SharePoint connector to set this Hyperlink field, pass a JSON object:
+**FlowRunURL Implementation**: 
+- **Setting**: When using the SharePoint connector to set this Hyperlink field, pass a JSON object:
 ```json
 {
   "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
   "Description": "View Flow Run"
 }
 ```
+- **Reading**: When reading this field with the SharePoint connector, it returns an object with Url and Description properties. In some legacy contexts or REST API calls, it may return as a flat string.
 
 #### PO List (Required for ISSUE validation)
 
