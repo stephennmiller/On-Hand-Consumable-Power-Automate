@@ -335,7 +335,32 @@ Filter Query: BatchID eq '@{variables('RunID')}' and ProcessingStatus eq 'Proces
 Top Count: 100
 ```
 
-**Batch Update Inventory:**
+**Important**: SharePoint REST API does not support arithmetic expressions in PATCH operations or PATCH with $filter. You must:
+1. First retrieve the current OnHandQty and item ID for each Part/Batch/UOM
+2. Calculate the new quantity in Power Automate
+3. Update each item by its specific ID
+
+**Option 1: Individual Updates (Recommended for <100 items):**
+```json
+Action: Apply to each aggregated item
+Source: @{body('Get_aggregated_data')?['value']}
+
+  Action: Get items - On-Hand Material
+  Filter Query: Part/Id eq @{items('Apply_to_each')?['Part']?['Id']} and Batch eq '@{items('Apply_to_each')?['Batch']}' and UOM eq '@{items('Apply_to_each')?['UOM']}'
+  Top Count: 1
+  
+  Condition: Check if record exists
+  Expression: @greater(length(body('Get_items')?['value']), 0)
+  
+  If Yes:
+    Action: Update item
+    ID: @{first(body('Get_items')?['value'])?['Id']}
+    OnHandQty: @{add(coalesce(first(body('Get_items')?['value'])?['OnHandQty'], 0), items('Apply_to_each')?['Qty'])}
+```
+
+**Option 2: Batch Update (For large datasets):**
+First collect all item IDs and new quantities, then build a proper batch:
+
 ```json
 Compose - Build batch update:
 @{
@@ -343,17 +368,17 @@ Compose - Build batch update:
     '--batch_boundary',
     join(
       map(
-        body('Get_aggregated_data')?['value'],
+        variables('PreparedUpdates'),  // Array of {OnHandItemId, NewQty} objects
         concat(
           '\r\nContent-Type: application/http',
           '\r\nContent-Transfer-Encoding: binary',
-          '\r\n\r\nPATCH /_api/web/lists/getbytitle(''On-Hand Material'')/items?$filter=Part/Id eq ',
-          item()?['Part']?['Id'],
-          ''' HTTP/1.1',
+          '\r\n\r\nPATCH /_api/web/lists/getbytitle(''On-Hand Material'')/items(',
+          item()?['OnHandItemId'],
+          ') HTTP/1.1',
           '\r\nContent-Type: application/json',
           '\r\nIF-MATCH: *',
           '\r\n\r\n{',
-          '"OnHandQty": "=OnHandQty + ', item()?['Qty'], '"',
+          '"OnHandQty": ', item()?['NewQty'],
           '}'
         )
       ),

@@ -203,7 +203,7 @@ Add **"Initialize variable"** action:
 
 - **Name:** vErrorMessage
 - **Type:** String
-- **Value:** `@{coalesce(result('Get_Part_from_Master')?['error']?['message'], 'Unknown error in autofill')}`
+- **Value:** `@{coalesce(outputs('Get_Part_from_Master')?['body']?['error']?['message'], outputs('Get_Part_from_Master')?['body']?['message'], 'Unknown error in autofill')}`
 
 #### Step 9b: Log Error
 

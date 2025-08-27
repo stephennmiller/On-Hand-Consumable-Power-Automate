@@ -170,17 +170,17 @@ Inside the loop, add these **"Increment variable"** actions:
 
 After the loop, add **"Compose"** actions for calculations:
 
-**Average Duration:**
+**Action: Compose_Average_Duration**
 ```powerautomate
 @{div(variables('vTotalDuration'), max(variables('vItemCount'), 1))}
 ```
 
-**Success Rate:**
+**Action: Compose_Success_Rate**
 ```powerautomate
 @{mul(div(variables('vSuccessCount'), max(variables('vItemCount'), 1)), 100)}
 ```
 
-**Throughput (records/minute):**
+**Action: Compose_Throughput**
 ```powerautomate
 @{div(variables('vTotalRecords'), max(variables('MetricsWindow'), 1))}
 ```
@@ -201,10 +201,10 @@ Body:
   "FlowName": "All Flows",
   "StartTime": "@{addMinutes(utcNow(), mul(-1, variables('MetricsWindow')))}",
   "EndTime": "@{utcNow()}",
-  "Duration": @{variables('AverageDuration')},
-  "RecordsProcessed": @{variables('TotalRecords')},
-  "Status": "@{if(greater(variables('SuccessRate'), 95), 'Success', if(greater(variables('SuccessRate'), 80), 'Warning', 'Failed'))}",
-  "PerformanceScore": @{variables('OverallScore')}
+  "Duration": @{outputs('Compose_Average_Duration')},
+  "RecordsProcessed": @{variables('vTotalRecords')},
+  "Status": "@{if(greater(outputs('Compose_Success_Rate'), 95), 'Success', if(greater(outputs('Compose_Success_Rate'), 80), 'Warning', 'Failed'))}",
+  "PerformanceScore": @{mul(outputs('Compose_Success_Rate'), 0.7)}
 }
 ```
 
@@ -222,12 +222,20 @@ Action: Apply to each alert configuration
       equals(items('Apply_to_each')?['ThresholdOperator'], 'Greater'),
       greater(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
       if(
-        equals(items('Apply_to_each')?['ThresholdOperator'], 'Less'),
-        less(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+        equals(items('Apply_to_each')?['ThresholdOperator'], 'GreaterEqual'),
+        greaterOrEquals(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
         if(
-          equals(items('Apply_to_each')?['ThresholdOperator'], 'Equal'),
-          equals(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
-          false
+          equals(items('Apply_to_each')?['ThresholdOperator'], 'Less'),
+          less(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+          if(
+            equals(items('Apply_to_each')?['ThresholdOperator'], 'LessEqual'),
+            lessOrEquals(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+            if(
+              equals(items('Apply_to_each')?['ThresholdOperator'], 'Equal'),
+              equals(variables('CurrentMetric'), items('Apply_to_each')?['ThresholdValue']),
+              false
+            )
+          )
         )
       )
     )
@@ -301,9 +309,12 @@ Source: @{body('Get_items')?['value']}
 
   Condition: Check if cooldown expired
   Expression:
-  @greater(
-    ticks(utcNow()),
-    ticks(addMinutes(items('Apply_to_each')?['LastAlertTime'], items('Apply_to_each')?['CooldownMinutes']))
+  @or(
+    equals(items('Apply_to_each')?['LastAlertTime'], null),
+    greater(
+      ticks(utcNow()),
+      ticks(addMinutes(items('Apply_to_each')?['LastAlertTime'], items('Apply_to_each')?['CooldownMinutes']))
+    )
   )
 ```
 
@@ -543,16 +554,16 @@ Action: Apply to each threshold rule
   Inputs:
     @if(
       equals(items('Apply_to_each')?['metric'], 'AverageProcessingTime'),
-      variables('AvgProcessingTime'),
+      outputs('Compose_Average_Duration'),
       if(
         equals(items('Apply_to_each')?['metric'], 'ErrorRate'),
-        variables('ErrorRate'),
+        sub(100, outputs('Compose_Success_Rate')),
         if(
-          equals(items('Apply_to_each')?['metric'], 'QueueLength'),
-          variables('QueueLength'),
+          equals(items('Apply_to_each')?['metric'], 'Throughput'),
+          outputs('Compose_Throughput'),
           if(
-            equals(items('Apply_to_each')?['metric'], 'MemoryUsage'),
-            variables('MemoryUsage'),
+            equals(items('Apply_to_each')?['metric'], 'TotalRecords'),
+            variables('vTotalRecords'),
             0
           )
         )
@@ -565,9 +576,17 @@ Action: Apply to each threshold rule
       equals(items('Apply_to_each')?['operator'], 'greater'),
       greater(outputs('Compose_metric'), items('Apply_to_each')?['threshold']),
       if(
-        equals(items('Apply_to_each')?['operator'], 'less'),
-        less(outputs('Compose_metric'), items('Apply_to_each')?['threshold']),
-        false
+        equals(items('Apply_to_each')?['operator'], 'greaterOrEquals'),
+        greaterOrEquals(outputs('Compose_metric'), items('Apply_to_each')?['threshold']),
+        if(
+          equals(items('Apply_to_each')?['operator'], 'less'),
+          less(outputs('Compose_metric'), items('Apply_to_each')?['threshold']),
+          if(
+            equals(items('Apply_to_each')?['operator'], 'lessOrEquals'),
+            lessOrEquals(outputs('Compose_metric'), items('Apply_to_each')?['threshold']),
+            false
+          )
+        )
       )
     )
   
