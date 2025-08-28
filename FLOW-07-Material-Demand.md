@@ -179,11 +179,11 @@ Add 3 **"Set variable"** actions:
 2. Add **"Condition"**: **"Check Conversion Found"**
    - Expression: `@greater(length(body('Get_UOM_Conversion_Factor')?['value']), 0)`
 
-   **Yes**: 
+   **Yes**:
    - Set vDemandConvertedQty = `round(mul(variables('vDemandIssueQty'), float(first(body('Get_UOM_Conversion_Factor')?['value'])?['ConversionFactor'])), 4)`
    - Set vConversionNote = `concat('Converted: ', string(variables('vDemandIssueQty')), ' ', variables('vDemandIssueUOM'), ' to ', string(variables('vDemandConvertedQty')), ' ', variables('vDemandUOM'), ' (factor: ', string(first(body('Get_UOM_Conversion_Factor')?['value'])?['ConversionFactor']), ')')`
 
-   **No**: 
+   **No**:
    - Set vDemandConvertedQty = `variables('vDemandIssueQty')` (1:1 fallback)
    - Set vConversionNote = `concat('WARNING: No conversion found for ', variables('vDemandIssueUOM'), ' to ', variables('vDemandUOM'), ' - using 1:1 ratio')`
 
