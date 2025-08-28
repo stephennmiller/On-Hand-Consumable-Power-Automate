@@ -256,7 +256,7 @@ Parse JSON Schema:
           "PartId": {"type": "integer"},
           "TransactionType": {"type": "string"},
           "Qty": {"type": "number"},
-          "ProcessedStatus": {"type": "string"}
+          "PostStatus": {"type": "string"}
         }
       }
     }
