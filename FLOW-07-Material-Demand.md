@@ -89,6 +89,8 @@ Add 6 **"Initialize variable"** actions:
    - Site Address: `@{environment('SharePointSiteUrl')}`
    - List Name: Material Demand
    - Filter Query: `PONumber/Id eq @{variables('vDemandPOId')} and Part/Id eq @{variables('vDemandPartId')} and DemandActive eq true`
+   - Select Query: `Id,UOM,IssuedQty,RequiredQty,Notes`
+   - Order By: `Id asc`
    - Top Count: `1`
 4. Settings:
    - Retry Policy: Fixed Interval
@@ -125,8 +127,12 @@ Add 3 **"Set variable"** actions:
 1. Add **"Get items"** action: **"Get UOM Conversion Factor"**
    - Site Address: `@{environment('SharePointSiteUrl')}`
    - List Name: UOM Conversions
-   - Filter Query: `Part/Id eq @{variables('vDemandPartId')} and FromUOM eq '@{variables('vDemandIssueUOM')}' and ToUOM eq '@{variables('vDemandUOM')}' and IsActive eq true`
+   - Filter Query: `Part/Id eq @{variables('vDemandPartId')} and FromUOM eq '@{toUpper(variables('vDemandIssueUOM'))}' and ToUOM eq '@{toUpper(variables('vDemandUOM'))}' and IsActive eq true`
+   - Select Query: `ConversionFactor`
+   - Order By: `Id asc`
    - Top Count: `1`
+   
+   **Note:** UOM values are normalized to uppercase for consistent matching. Ensure UOM Conversions list stores values in uppercase.
 
 2. Add **"Condition"**: **"Check Conversion Found"**
    - Expression: `@greater(length(body('Get_UOM_Conversion_Factor')?['value']), 0)`
@@ -138,17 +144,27 @@ Add 3 **"Set variable"** actions:
 **No Branch (Same UOM):**
 - Set vDemandConvertedQty = `variables('vDemandIssueQty')`
 
-##### Step 5c: Update Issued Quantity
+##### Step 5c: Update Issued Quantity (with Concurrency Control)
 
-1. Get current IssuedQty:
+**Note:** Since FLOW-03 already has trigger concurrency set to 1, demand updates are serialized per flow instance. For additional safety with parallel manual updates:
+
+1. Get current IssuedQty and ETag:
+   - Add **"Get item"** action: **"Get Demand with ETag"**
+   - Site Address: `@{environment('SharePointSiteUrl')}`
+   - List Name: Material Demand
+   - Id: `@{variables('vDemandRecordId')}`
+   
+2. Extract values:
    - Add **"Set variable"**: vCurrentIssuedQty (Float)
-   - Value: `float(coalesce(first(body('Get_Demand_for_Part_and_PO')?['value'])?['IssuedQty'], 0))`
+   - Value: `float(coalesce(body('Get_Demand_with_ETag')?['IssuedQty'], 0))`
+   - Add **"Set variable"**: vDemandETag (String)
+   - Value: `body('Get_Demand_with_ETag')?['@odata.etag']`
 
-2. Calculate new total:
+3. Calculate new total:
    - Add **"Set variable"**: vNewIssuedQty (Float)
    - Value: `add(variables('vCurrentIssuedQty'), variables('vDemandConvertedQty'))`
 
-3. Add **"Update item"** action: **"Update Demand IssuedQty"**
+4. Add **"Update item"** action: **"Update Demand IssuedQty"**
    - Site Address: `@{environment('SharePointSiteUrl')}`
    - List Name: Material Demand
    - Id: `@{variables('vDemandRecordId')}`
@@ -203,17 +219,20 @@ Outside the "Update Material Demand" scope, add:
 Inside error handler:
 
 1. Add **"Compose"** action: **"Build Error Details"**
-```json
-{
-  "FlowName": "TT - Issue/Returned → OnHand Decrement",
-  "ErrorLocation": "Material Demand Update",
-  "TransactionId": @{triggerBody()?['ID']},
-  "PartId": @{variables('vDemandPartId')},
-  "POId": @{variables('vDemandPOId')},
-  "ErrorMessage": "@{coalesce(result('Update_Material_Demand')?['error']?['message'], 'Unknown error')}",
-  "Timestamp": "@{utcNow()}"
-}
-```
+
+   **Important:** Use the Expression tab in Power Automate, not plain text JSON:
+   
+   ```powerautomate
+   json(concat('{
+     "FlowName": "TT - Issue/Returned → OnHand Decrement",
+     "ErrorLocation": "Material Demand Update",
+     "TransactionId": ', string(triggerBody()?['ID']), ',
+     "PartId": ', string(variables('vDemandPartId')), ',
+     "POId": ', string(variables('vDemandPOId')), ',
+     "ErrorMessage": "', replace(coalesce(result('Update_Material_Demand')?['error']?['message'], 'Unknown error'), '"', '\"'), '",
+     "Timestamp": "', utcNow(), '"
+   }'))
+   ```
 
 2. Add **"Create item"** action: **"Log Demand Error"**
    - Site Address: `@{environment('SharePointSiteUrl')}`
@@ -299,6 +318,9 @@ After implementing this enhancement:
 ## Success Metrics
 
 - 100% of ISSUE transactions update demand (where records exist)
-- <2 second additional processing time
+- Performance targets:
+  - P50 (median): <3 seconds additional processing time
+  - P95: <5 seconds additional processing time  
+  - P99: <10 seconds additional processing time
 - Zero failures in main transaction flow due to demand updates
 - Accurate tracking enables 20% reduction in stockouts
