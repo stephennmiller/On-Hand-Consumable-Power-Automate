@@ -52,31 +52,37 @@ Inside the **Yes** branch of "Check if ISSUE Transaction":
 Add 6 **"Initialize variable"** actions:
 
 #### Variable 1: vDemandPartId
+
 - **Name:** vDemandPartId
 - **Type:** Integer
 - **Value:** `int(coalesce(triggerBody()?['Part']?['Id'], 0))`
 
 #### Variable 2: vDemandPOId
+
 - **Name:** vDemandPOId
 - **Type:** Integer
 - **Value:** `int(coalesce(triggerBody()?['PO']?['Id'], 0))`
 
 #### Variable 3: vDemandIssueQty
+
 - **Name:** vDemandIssueQty
 - **Type:** Float
 - **Value:** `float(coalesce(triggerBody()?['Qty'], 0))`
 
 #### Variable 4: vDemandIssueUOM
+
 - **Name:** vDemandIssueUOM
 - **Type:** String
 - **Value:** `trim(coalesce(triggerBody()?['UOM'], ''))`
 
 #### Variable 5: vDemandFound
+
 - **Name:** vDemandFound
 - **Type:** Boolean
 - **Value:** `false`
 
 #### Variable 6: vDemandConvertedQty
+
 - **Name:** vDemandConvertedQty
 - **Type:** Float
 - **Value:** `0`
@@ -131,14 +137,14 @@ Add 3 **"Set variable"** actions:
    - Select Query: `ConversionFactor`
    - Order By: `Id asc`
    - Top Count: `1`
-   
+
    **Note:** UOM values are normalized to uppercase for consistent matching. Ensure UOM Conversions list stores values in uppercase.
 
 2. Add **"Condition"**: **"Check Conversion Found"**
    - Expression: `@greater(length(body('Get_UOM_Conversion_Factor')?['value']), 0)`
-   
+
    **Yes**: Set vDemandConvertedQty = `mul(variables('vDemandIssueQty'), float(first(body('Get_UOM_Conversion_Factor')?['value'])?['ConversionFactor']))`
-   
+
    **No**: Set vDemandConvertedQty = `variables('vDemandIssueQty')` (1:1 fallback)
 
 **No Branch (Same UOM):**
@@ -153,7 +159,7 @@ Add 3 **"Set variable"** actions:
    - Site Address: `@{environment('SharePointSiteUrl')}`
    - List Name: Material Demand
    - Id: `@{variables('vDemandRecordId')}`
-   
+
 2. Extract values:
    - Add **"Set variable"**: vCurrentIssuedQty (Float)
    - Value: `float(coalesce(body('Get_Demand_with_ETag')?['IssuedQty'], 0))`
@@ -221,7 +227,7 @@ Inside error handler:
 1. Add **"Compose"** action: **"Build Error Details"**
 
    **Important:** Use the Expression tab in Power Automate, not plain text JSON:
-   
+
    ```powerautomate
    json(concat('{
      "FlowName": "TT - Issue/Returned → OnHand Decrement",
