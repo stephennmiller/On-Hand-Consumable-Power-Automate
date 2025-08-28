@@ -49,7 +49,7 @@ Only proceed with demand update in the **Yes** branch.
 
 Inside the **Yes** branch of "Check if ISSUE Transaction":
 
-Add 11 **"Initialize variable"** actions:
+Add 12 **"Initialize variable"** actions:
 
 #### Variable 1: vDemandPartId
 
@@ -117,6 +117,12 @@ Add 11 **"Initialize variable"** actions:
 - **Type:** String
 - **Value:** `''`
 
+#### Variable 12: vConversionNote
+
+- **Name:** vConversionNote
+- **Type:** String
+- **Value:** `''`
+
 ### Step 4: Get Matching Demand Record
 
 1. Add **"Get items"** action
@@ -173,12 +179,17 @@ Add 3 **"Set variable"** actions:
 2. Add **"Condition"**: **"Check Conversion Found"**
    - Expression: `@greater(length(body('Get_UOM_Conversion_Factor')?['value']), 0)`
 
-   **Yes**: Set vDemandConvertedQty = `mul(variables('vDemandIssueQty'), float(first(body('Get_UOM_Conversion_Factor')?['value'])?['ConversionFactor']))`
+   **Yes**: 
+   - Set vDemandConvertedQty = `round(mul(variables('vDemandIssueQty'), float(first(body('Get_UOM_Conversion_Factor')?['value'])?['ConversionFactor'])), 4)`
+   - Set vConversionNote = `concat('Converted: ', string(variables('vDemandIssueQty')), ' ', variables('vDemandIssueUOM'), ' to ', string(variables('vDemandConvertedQty')), ' ', variables('vDemandUOM'), ' (factor: ', string(first(body('Get_UOM_Conversion_Factor')?['value'])?['ConversionFactor']), ')')`
 
-   **No**: Set vDemandConvertedQty = `variables('vDemandIssueQty')` (1:1 fallback)
+   **No**: 
+   - Set vDemandConvertedQty = `variables('vDemandIssueQty')` (1:1 fallback)
+   - Set vConversionNote = `concat('WARNING: No conversion found for ', variables('vDemandIssueUOM'), ' to ', variables('vDemandUOM'), ' - using 1:1 ratio')`
 
 **No Branch (Same UOM):**
 - Set vDemandConvertedQty = `variables('vDemandIssueQty')`
+- Set vConversionNote = `''` (no conversion needed)
 
 ##### Step 5c: Update Issued Quantity (with Concurrency Control)
 
@@ -198,7 +209,7 @@ Add 3 **"Set variable"** actions:
 
 3. Calculate new total:
    - Add **"Set variable"**: vNewIssuedQty (Float)
-   - Value: `add(variables('vCurrentIssuedQty'), variables('vDemandConvertedQty'))`
+   - Value: `round(add(variables('vCurrentIssuedQty'), variables('vDemandConvertedQty')), 2)`
 
 4. Add **"Update item"** action: **"Update Demand IssuedQty"**
    - Site Address: `@{environment('SharePointSiteUrl')}`
@@ -215,10 +226,14 @@ concat(
   'Issue TT#', string(triggerBody()?['ID']), ': ',
   string(variables('vDemandIssueQty')), ' ', variables('vDemandIssueUOM'),
   if(not(equals(variables('vDemandUOM'), variables('vDemandIssueUOM'))),
-    concat(' (converted to ', string(variables('vDemandConvertedQty')), ' ', variables('vDemandUOM'), ')'),
+    concat(' (converted to ', string(round(variables('vDemandConvertedQty'), 2)), ' ', variables('vDemandUOM'), ')'),
     ''
   ),
-  ' | Total issued: ', string(variables('vNewIssuedQty')), ' ', variables('vDemandUOM')
+  ' | Total issued: ', string(round(variables('vNewIssuedQty'), 2)), ' ', variables('vDemandUOM'),
+  if(not(equals(variables('vConversionNote'), '')),
+    concat(' | ', variables('vConversionNote')),
+    ''
+  )
 )
 ```
 
@@ -313,7 +328,8 @@ Inside error handler:
 2. Don't create conversion record
 3. Issue transaction
 4. Verify: Uses 1:1 conversion as fallback
-5. Verify: Warning noted in demand Notes field
+5. Verify: Warning noted in demand Notes field with text "WARNING: No conversion found"
+6. Verify: vConversionNote contains fallback message
 
 ## Performance Considerations
 
