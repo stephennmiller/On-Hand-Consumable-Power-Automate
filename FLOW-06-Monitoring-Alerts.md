@@ -55,6 +55,7 @@ Columns:
 Columns:
 - Title: Single line of text
 - AlertType: Choice (Error, Performance, Threshold, Health)
+- MetricName: Single line of text (e.g., SuccessRate, AverageDuration, Throughput)
 - FlowName: Single line of text
 - ThresholdValue: Number
 - ThresholdOperator: Choice (Greater, Less, Equal, GreaterEqual, LessEqual)
@@ -114,31 +115,31 @@ Action: Send an HTTP request to SharePoint
 Method: GET
 Uri: _api/web/lists/getbytitle('Flow Run History')/items?$filter=Created ge datetime'@{addMinutes(utcNow(), mul(-1, variables('MetricsWindow')))}'&$top=1000&$orderby=Created desc
 Headers:
-  Accept: application/json;odata=verbose
-  Content-Type: application/json;odata=verbose
+  Accept: application/json;odata=nometadata
+  Content-Type: application/json;odata=nometadata
 ```
 
 #### Step 3: Parse and Analyze Performance Data
 
 ```
 Action: Select
-From: @{body('Get_Recent_Flow_Runs')['d']['results']}
+From: @{body('Get_Recent_Flow_Runs')?['value']}
 Map:
 {
-  "FlowName": @{item()['FlowName']},
-  "RunID": @{item()['RunID']},
-  "Duration": @{sub(ticks(item()['EndTime']), ticks(item()['StartTime']))},
-  "RecordsProcessed": @{item()['RecordsProcessed']},
-  "Status": @{item()['Status']},
+  "FlowName": @{item()?['FlowName']},
+  "RunID": @{item()?['RunID']},
+  "Duration": @{div(sub(ticks(item()?['EndTime']), ticks(item()?['StartTime'])), 10000)},
+  "RecordsProcessed": @{item()?['RecordsProcessed']},
+  "Status": @{item()?['Status']},
   "PerformanceScore": @{
     if(
-      less(item()['Duration'], 60000),
+      less(item()?['Duration'], 60000),
       100,
       if(
-        less(item()['Duration'], 120000),
+        less(item()?['Duration'], 120000),
         80,
         if(
-          less(item()['Duration'], 300000),
+          less(item()?['Duration'], 300000),
           60,
           40
         )
@@ -150,42 +151,39 @@ Map:
 
 #### Step 4: Calculate Aggregated Metrics
 
+Add these **"Initialize variable"** actions:
+
+- **Name:** vTotalDuration, **Type:** Integer, **Value:** 0
+- **Name:** vItemCount, **Type:** Integer, **Value:** 0
+- **Name:** vSuccessCount, **Type:** Integer, **Value:** 0
+- **Name:** vTotalRecords, **Type:** Integer, **Value:** 0
+
+Add **"Apply to each"** action:
+
+**Select:** `@{body('Select_Performance_Data')}`
+
+Inside the loop, add these **"Increment variable"** actions:
+
+1. **Increment vTotalDuration by:** `@{int(items('Apply_to_each')?['Duration'])}`
+2. **Increment vItemCount by:** 1
+3. **Increment vSuccessCount by:** `@{if(equals(items('Apply_to_each')?['Status'],'Success'),1,0)}`
+4. **Increment vTotalRecords by:** `@{int(coalesce(items('Apply_to_each')?['RecordsProcessed'], 0))}`
+
+After the loop, add **"Compose"** actions for calculations:
+
+**Action: Compose_Average_Duration**
+```powerautomate
+@{div(variables('vTotalDuration'), max(variables('vItemCount'), 1))}
 ```
-Expression for Average Duration:
-div(
-  add(
-    apply(
-      body('Select_Performance_Data'),
-      x => x['Duration']
-    )
-  ),
-  length(body('Select_Performance_Data'))
-)
 
-Expression for Success Rate:
-mul(
-  div(
-    length(
-      filter(
-        body('Select_Performance_Data'),
-        x => equals(x['Status'], 'Success')
-      )
-    ),
-    length(body('Select_Performance_Data'))
-  ),
-  100
-)
+**Action: Compose_Success_Rate**
+```powerautomate
+@{mul(div(variables('vSuccessCount'), max(variables('vItemCount'), 1)), 100)}
+```
 
-Expression for Throughput:
-div(
-  sum(
-    apply(
-      body('Select_Performance_Data'),
-      x => x['RecordsProcessed']
-    )
-  ),
-  variables('MetricsWindow')
-)
+**Action: Compose_Throughput**
+```powerautomate
+@{div(variables('vTotalRecords'), max(variables('MetricsWindow'), 1))}
 ```
 
 #### Step 5: Store Metrics in SharePoint
@@ -195,20 +193,18 @@ Action: Send an HTTP request to SharePoint
 Method: POST
 Uri: _api/web/lists/getbytitle('Performance Metrics')/items
 Headers:
-  Accept: application/json;odata=verbose
-  Content-Type: application/json;odata=verbose
-  X-RequestDigest: @{body('Get_Form_Digest')['d']['GetContextWebInformation']['FormDigestValue']}
+  Accept: application/json;odata=nometadata
+  Content-Type: application/json;odata=nometadata
 Body:
 {
-  "__metadata": {"type": "SP.Data.PerformanceMetricsListItem"},
   "Title": "Metrics @{utcNow()}",
   "FlowName": "All Flows",
   "StartTime": "@{addMinutes(utcNow(), mul(-1, variables('MetricsWindow')))}",
   "EndTime": "@{utcNow()}",
-  "Duration": @{variables('AverageDuration')},
-  "RecordsProcessed": @{variables('TotalRecords')},
-  "Status": "@{if(greater(variables('SuccessRate'), 95), 'Success', if(greater(variables('SuccessRate'), 80), 'Warning', 'Failed'))}",
-  "PerformanceScore": @{variables('OverallScore')}
+  "Duration": @{outputs('Compose_Average_Duration')},
+  "RecordsProcessed": @{variables('vTotalRecords')},
+  "Status": "@{if(greater(outputs('Compose_Success_Rate'), 95), 'Success', if(greater(outputs('Compose_Success_Rate'), 80), 'Warning', 'Failed'))}",
+  "PerformanceScore": @{mul(outputs('Compose_Success_Rate'), 0.7)}
 }
 ```
 
@@ -220,14 +216,45 @@ List: Alert Configuration
 Filter: IsActive eq true and AlertType eq 'Performance'
 
 Action: Apply to each alert configuration
+  
+  Action: Compose_Current_Metric
+  Inputs:
+    @if(
+      equals(items('Apply_to_each')?['MetricName'], 'SuccessRate'),
+      outputs('Compose_Success_Rate'),
+      if(
+        equals(items('Apply_to_each')?['MetricName'], 'AverageDuration'),
+        outputs('Compose_Average_Duration'),
+        if(
+          equals(items('Apply_to_each')?['MetricName'], 'Throughput'),
+          outputs('Compose_Throughput'),
+          0
+        )
+      )
+    )
+  
   Condition: Check if threshold breached
   Expression: 
-    switch(
-      items('Apply_to_each')['ThresholdOperator'],
-      'Greater', greater(variables('CurrentMetric'), items('Apply_to_each')['ThresholdValue']),
-      'Less', less(variables('CurrentMetric'), items('Apply_to_each')['ThresholdValue']),
-      'Equal', equals(variables('CurrentMetric'), items('Apply_to_each')['ThresholdValue']),
-      false
+    @if(
+      equals(items('Apply_to_each')?['ThresholdOperator'], 'Greater'),
+      greater(outputs('Compose_Current_Metric'), items('Apply_to_each')?['ThresholdValue']),
+      if(
+        equals(items('Apply_to_each')?['ThresholdOperator'], 'GreaterEqual'),
+        greaterOrEquals(outputs('Compose_Current_Metric'), items('Apply_to_each')?['ThresholdValue']),
+        if(
+          equals(items('Apply_to_each')?['ThresholdOperator'], 'Less'),
+          less(outputs('Compose_Current_Metric'), items('Apply_to_each')?['ThresholdValue']),
+          if(
+            equals(items('Apply_to_each')?['ThresholdOperator'], 'LessEqual'),
+            lessOrEquals(outputs('Compose_Current_Metric'), items('Apply_to_each')?['ThresholdValue']),
+            if(
+              equals(items('Apply_to_each')?['ThresholdOperator'], 'Equal'),
+              equals(outputs('Compose_Current_Metric'), items('Apply_to_each')?['ThresholdValue']),
+              false
+            )
+          )
+        )
+      )
     )
   
   If Yes: Add to AlertsToSend array
@@ -292,14 +319,20 @@ if(
 ```
 Action: Get items
 List: Alert Configuration
-Filter: FlowName eq '@{body('Get_item')['FlowName']}' and AlertType eq 'Error'
+Filter: FlowName eq '@{body('Get_item')?['FlowName']}' and AlertType eq 'Error'
 
-Condition: Check if cooldown expired
-Expression:
-greater(
-  ticks(utcNow()),
-  ticks(addMinutes(items('Apply_to_each')['LastAlertTime'], items('Apply_to_each')['CooldownMinutes']))
-)
+Action: Apply to each alert configuration
+Source: @{body('Get_items')?['value']}
+
+  Condition: Check if cooldown expired
+  Expression:
+  @or(
+    equals(items('Apply_to_each')?['LastAlertTime'], null),
+    greater(
+      ticks(utcNow()),
+      ticks(addMinutes(items('Apply_to_each')?['LastAlertTime'], items('Apply_to_each')?['CooldownMinutes']))
+    )
+  )
 ```
 
 #### Step 4: Send Teams Alert
@@ -486,45 +519,49 @@ Value:
 Action: Send an HTTP request to SharePoint
 Method: GET
 Uri: _api/web/lists/getbytitle('Performance Metrics')/items?$filter=Created ge datetime'@{addMinutes(utcNow(), -15)}'&$orderby=Created desc&$top=100
+Headers:
+  Accept: application/json;odata=nometadata
+  Content-Type: application/json;odata=nometadata
 ```
 
 #### Step 3: Calculate Threshold Metrics
 
+Add **"Initialize variable"** actions:
+- **Name:** vTotalDuration2, **Type:** Integer, **Value:** 0
+- **Name:** vItemCount2, **Type:** Integer, **Value:** 0
+- **Name:** vFailedCount, **Type:** Integer, **Value:** 0
+
+Add **"Apply to each"** action:
+**Source:** `@{body('Get_Current_Metrics')?['value']}`
+
+Inside the loop:
+1. **Increment vTotalDuration2 by:** `@{int(coalesce(items('Apply_to_each')?['Duration'], 0))}`
+2. **Increment vItemCount2 by:** 1
+3. **Increment vFailedCount by:** `@{if(equals(items('Apply_to_each')?['Status'],'Failed'),1,0)}`
+
+After the loop, add **"Compose"** actions:
+
+**Action: Compose_Average_Processing_Time**
+```powerautomate
+@{div(variables('vTotalDuration2'), max(variables('vItemCount2'), 1))}
 ```
-Expression for Average Processing Time:
-div(
-  sum(
-    apply(
-      body('Get_Current_Metrics')['d']['results'],
-      x => x['Duration']
-    )
-  ),
-  length(body('Get_Current_Metrics')['d']['results'])
-)
 
-Expression for Error Rate:
-mul(
-  div(
-    length(
-      filter(
-        body('Get_Current_Metrics')['d']['results'],
-        x => equals(x['Status'], 'Failed')
-      )
-    ),
-    length(body('Get_Current_Metrics')['d']['results'])
-  ),
-  100
-)
-
-Expression for Queue Length:
-body('Get_Queue_Status')['d']['ItemCount']
-
-Expression for Memory Usage:
-div(
-  body('Get_System_Metrics')['MemoryUsed'],
-  body('Get_System_Metrics')['MemoryTotal']
-)
+**Action: Compose_Error_Rate**
+```powerautomate
+@{mul(div(variables('vFailedCount'), max(variables('vItemCount2'), 1)), 100)}
 ```
+
+**Action: Compose_Queue_Length**
+```powerautomate
+@{0}
+```
+*Note: Replace with actual queue monitoring if available (e.g., Azure Service Bus, Logic Apps run queue)*
+
+**Action: Compose_Memory_Usage**
+```powerautomate
+@{0}
+```
+*Note: Replace with actual system metrics if available (e.g., Azure Monitor connector)*
 
 #### Step 4: Check Each Threshold
 
@@ -532,24 +569,44 @@ div(
 Action: Apply to each threshold rule
   Source: @{variables('ThresholdRules')}
   
-  Action: Compose current metric value
+  Action: Compose_Metric_Value
   Inputs:
-    switch(
-      items('Apply_to_each')['metric'],
-      'AverageProcessingTime', variables('AvgProcessingTime'),
-      'ErrorRate', variables('ErrorRate'),
-      'QueueLength', variables('QueueLength'),
-      'MemoryUsage', variables('MemoryUsage'),
-      0
+    @if(
+      equals(items('Apply_to_each')?['metric'], 'AverageProcessingTime'),
+      outputs('Compose_Average_Processing_Time'),
+      if(
+        equals(items('Apply_to_each')?['metric'], 'ErrorRate'),
+        outputs('Compose_Error_Rate'),
+        if(
+          equals(items('Apply_to_each')?['metric'], 'QueueLength'),
+          outputs('Compose_Queue_Length'),
+          if(
+            equals(items('Apply_to_each')?['metric'], 'MemoryUsage'),
+            outputs('Compose_Memory_Usage'),
+            0
+          )
+        )
+      )
     )
   
   Condition: Check if threshold breached
   Expression:
-    switch(
-      items('Apply_to_each')['operator'],
-      'greater', greater(outputs('Compose_metric'), items('Apply_to_each')['threshold']),
-      'less', less(outputs('Compose_metric'), items('Apply_to_each')['threshold']),
-      false
+    @if(
+      equals(items('Apply_to_each')?['operator'], 'greater'),
+      greater(outputs('Compose_Metric_Value'), items('Apply_to_each')?['threshold']),
+      if(
+        equals(items('Apply_to_each')?['operator'], 'greaterOrEquals'),
+        greaterOrEquals(outputs('Compose_Metric_Value'), items('Apply_to_each')?['threshold']),
+        if(
+          equals(items('Apply_to_each')?['operator'], 'less'),
+          less(outputs('Compose_Metric_Value'), items('Apply_to_each')?['threshold']),
+          if(
+            equals(items('Apply_to_each')?['operator'], 'lessOrEquals'),
+            lessOrEquals(outputs('Compose_Metric_Value'), items('Apply_to_each')?['threshold']),
+            false
+          )
+        )
+      )
     )
   
   If Yes: Send threshold breach notification
@@ -854,11 +911,15 @@ Body:
 }
 ```
 
-#### Step 4: Send WebSocket Update (for real-time display)
+#### Step 4: Send WebSocket Update (Optional - for real-time display)
+
+**Note**: This step requires Azure SignalR Service. Skip if not using real-time dashboard updates.
 
 ```
 Action: Send message to Azure SignalR
 Connection String: @{environment('SignalRConnection')}
+   Note: Replace 'SignalRConnection' with your actual environment variable schema name
+   Prerequisites: Create SignalRConnection environment variable as described in START-HERE.md
 Hub Name: DashboardHub
 Target: updateMetric
 Arguments:
@@ -1041,6 +1102,77 @@ if(
   true,
   false
 )
+```
+
+## Error Handling Implementation
+
+### Global Error Handling Pattern
+
+Each monitoring flow should implement comprehensive error handling:
+
+#### Flow-Level Error Handling
+
+Add **"Scope"** action named **"Main Logic"** to wrap all primary flow actions.
+
+Add **"Scope"** action named **"Error Handler"** with run after settings:
+- Has failed: Yes
+- Is skipped: Yes  
+- Has timed out: Yes
+
+Inside Error Handler scope:
+
+```powerautomate
+Action: Initialize variable - ErrorDetails
+Name: vErrorDetails
+Type: String
+Value: @{result('Main_Logic')}
+
+Action: Create item - SharePoint
+List: Flow Error Log
+Fields:
+  Title: @{workflow()?['name']}
+  ErrorMessage: @{substring(string(variables('vErrorDetails')), 0, min(4000, length(string(variables('vErrorDetails')))))}
+  ItemID: @{coalesce(triggerBody()?['ID'], 'N/A')}
+  Timestamp: @{utcNow()}
+  FlowRunURL:
+    {
+      "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
+      "Description": "View Flow Run"
+    }
+
+Action: Send an email (V2)  
+To: @{environment('AdminEmail')}
+   Note: Replace 'AdminEmail' with your actual environment variable schema name (e.g., 'cr123_AdminEmail')
+Subject: ⚠️ Monitoring Flow Error - @{workflow()?['name']}
+Body: 
+  Flow: @{workflow()?['name']}
+  Time: @{utcNow()}
+  Error: @{variables('vErrorDetails')}
+  
+Action: Terminate
+Status: Failed
+Message: @{concat('Monitoring error logged. Error ID: ', outputs('Create_item')?['body/ID'])}
+```
+
+#### Action-Level Error Handling
+
+For critical monitoring actions (API calls, data calculations):
+
+```powerautomate
+Configure run after for next action:
+- Has succeeded: Continue normally
+- Has failed: Log specific error and continue monitoring
+
+Example for Performance Metrics calculation:
+Action: Scope - Calculate Metrics
+  Try:
+    - Calculate average duration
+    - Calculate success rate
+    - Calculate throughput
+  Catch:
+    - Set default values
+    - Log calculation error
+    - Continue with available data
 ```
 
 ## Troubleshooting Guide

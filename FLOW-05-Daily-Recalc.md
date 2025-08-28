@@ -82,8 +82,10 @@ This guide provides a production-ready implementation of an optimized recalc flo
    - ConsecutiveSuccesses (Number)
 
 3. **Aggregation Temp List** (New)
-   - ItemNumber (Single line of text - Indexed)
-   - Quantity (Number)
+   - PartId (Number - Indexed)
+   - Batch (Single line of text - Indexed)
+   - UOM (Single line of text)
+   - Qty (Number)
    - BatchID (Single line of text)
    - ProcessingStatus (Choice: Pending, Processing, Completed)
 
@@ -172,7 +174,7 @@ Set Variable - RunID:
 **If No:** Create new checkpoint
 ```json
 SharePoint - Create item:
-Site Address: [Your SharePoint Site]
+Site Address: `@{environment('SharePointSiteUrl')}`
 List Name: Checkpoint State
 Title: @{concat('Recalc_', utcNow('yyyy-MM-dd_HH-mm'))}
 RunID: @{variables('RunID')}
@@ -191,7 +193,7 @@ Metadata: {"source":"optimized_recalc","version":"2.0"}
 
 ```json
 SharePoint - Get items:
-Site Address: [Your SharePoint Site]
+Site Address: `@{environment('SharePointSiteUrl')}`
 List Name: Circuit Breaker
 Filter Query: ServiceName eq 'SharePointBatch'
 ```
@@ -219,7 +221,7 @@ Set Variable - ProcessingStatus: "CircuitOpen"
 
 ```json
 Send an HTTP request to SharePoint:
-Site Address: [Your SharePoint Site]
+Site Address: `@{environment('SharePointSiteUrl')}`
 Method: POST
 Uri: _api/$batch
 Headers: {
@@ -229,12 +231,12 @@ Body: @{concat(
   '--batch_boundary',
   '\r\nContent-Type: application/http',
   '\r\nContent-Transfer-Encoding: binary',
-  '\r\n\r\nGET /_api/web/lists/getbytitle(''Transactions'')/items?',
-  '$select=ID,ItemNumber,ActionType,QuantityChange,ProcessedStatus&',
-  '$filter=ID gt ', variables('LastProcessedID'), ' and ProcessedStatus eq ''Pending''&',
+  '\r\n\r\nGET /_api/web/lists/getbytitle(''Tech Transactions'')/items?',
+  '$select=ID,PartId,TransactionType,Qty,PostStatus&',
+  '$filter=ID gt ', variables('LastProcessedID'), ' and PostStatus eq ''Validated''&',
   '$top=', variables('BatchSize'), '&',
   '$orderby=ID asc HTTP/1.1',
-  '\r\nAccept: application/json',
+  '\r\nAccept: application/json;odata=nometadata',
   '\r\n\r\n--batch_boundary--'
 )}
 ```
@@ -251,10 +253,10 @@ Parse JSON Schema:
         "type": "object",
         "properties": {
           "ID": {"type": "integer"},
-          "ItemNumber": {"type": "string"},
-          "ActionType": {"type": "string"},
-          "QuantityChange": {"type": "number"},
-          "ProcessedStatus": {"type": "string"}
+          "PartId": {"type": "integer"},
+          "TransactionType": {"type": "string"},
+          "Qty": {"type": "number"},
+          "PostStatus": {"type": "string"}
         }
       }
     }
@@ -290,7 +292,7 @@ Inside Apply to each:
   @{
     filter(
       variables('AggregationData'),
-      item => item['ItemNumber'] == items('Apply_to_each')?['ItemNumber']
+      item => item['PartId'] == items('Apply_to_each')?['PartId']
     )
   }
   
@@ -304,9 +306,9 @@ Inside Apply to each:
     Body: {
       "Quantity": @{add(
         first(outputs('Check_existing'))?['Quantity'],
-        if(equals(items('Apply_to_each')?['ActionType'], 'Issue'),
-          mul(items('Apply_to_each')?['QuantityChange'], -1),
-          items('Apply_to_each')?['QuantityChange']
+        if(equals(items('Apply_to_each')?['TransactionType'], 'ISSUE'),
+          mul(items('Apply_to_each')?['Qty'], -1),
+          items('Apply_to_each')?['Qty']
         )
       )}
     }
@@ -314,11 +316,13 @@ Inside Apply to each:
   If No - Create new:
     SharePoint - Create item:
     List Name: Aggregation Temp
-    ItemNumber: @{items('Apply_to_each')?['ItemNumber']}
-    Quantity: @{
-      if(equals(items('Apply_to_each')?['ActionType'], 'Issue'),
-        mul(items('Apply_to_each')?['QuantityChange'], -1),
-        items('Apply_to_each')?['QuantityChange']
+    PartId: @{items('Apply_to_each')?['PartId']}
+    Batch: @{coalesce(items('Apply_to_each')?['Batch'], 'DEFAULT')}
+    UOM: @{coalesce(items('Apply_to_each')?['UOM'], 'EA')}
+    Qty: @{
+      if(equals(items('Apply_to_each')?['TransactionType'], 'ISSUE'),
+        mul(items('Apply_to_each')?['Qty'], -1),
+        items('Apply_to_each')?['Qty']
       )
     }
     BatchID: @{variables('RunID')}
@@ -335,7 +339,36 @@ Filter Query: BatchID eq '@{variables('RunID')}' and ProcessingStatus eq 'Proces
 Top Count: 100
 ```
 
-**Batch Update Inventory:**
+**Important**: SharePoint REST API does not support arithmetic expressions in PATCH operations or PATCH with $filter. You must:
+1. First retrieve the current OnHandQty and item ID for each Part/Batch/UOM
+2. Calculate the new quantity in Power Automate
+3. Update each item by its specific ID
+
+**Option 1: Individual Updates (Recommended for <100 items):**
+```json
+Action: Apply to each aggregated item
+Source: @{body('Get_aggregated_data')?['value']}
+
+  Action: Get items - On-Hand Material
+  Filter Query: @{concat(
+    'Part/Id eq ', items('Apply_to_each')?['PartId'],
+    ' and Batch eq ''', replace(coalesce(items('Apply_to_each')?['Batch'], 'DEFAULT'), '''', ''''''), '''',
+    ' and UOM eq ''', replace(coalesce(items('Apply_to_each')?['UOM'], 'EA'), '''', ''''''), ''''
+  )}
+  Top Count: 1
+  
+  Condition: Check if record exists
+  Expression: @greater(length(body('Get_items')?['value']), 0)
+  
+  If Yes:
+    Action: Update item
+    ID: @{first(body('Get_items')?['value'])?['ID']}
+    OnHandQty: @{add(coalesce(first(body('Get_items')?['value'])?['OnHandQty'], 0), items('Apply_to_each')?['Qty'])}
+```
+
+**Option 2: Batch Update (For large datasets):**
+First collect all item IDs and new quantities, then build a proper batch:
+
 ```json
 Compose - Build batch update:
 @{
@@ -343,17 +376,17 @@ Compose - Build batch update:
     '--batch_boundary',
     join(
       map(
-        body('Get_aggregated_data')?['value'],
+        variables('PreparedUpdates'),  // Array of {OnHandItemId, NewQty} objects
         concat(
           '\r\nContent-Type: application/http',
           '\r\nContent-Transfer-Encoding: binary',
-          '\r\n\r\nPATCH /_api/web/lists/getbytitle(''Inventory'')/items?$filter=ItemNumber eq ''',
-          item()?['ItemNumber'],
-          ''' HTTP/1.1',
+          '\r\n\r\nPATCH /_api/web/lists/getbytitle(''On-Hand Material'')/items(',
+          item()?['OnHandItemId'],
+          ') HTTP/1.1',
           '\r\nContent-Type: application/json',
           '\r\nIF-MATCH: *',
           '\r\n\r\n{',
-          '"OnHandQuantity": "=OnHandQuantity + ', item()?['Quantity'], '"',
+          '"OnHandQty": ', item()?['NewQty'],
           '}'
         )
       ),
@@ -445,7 +478,7 @@ Inside Scope:
     )}
   
   Send notification:
-    To: [Admin Email]
+    To: `@{environment('AdminEmail')}`
     Subject: Recalc Flow Error - Circuit Breaker Activated
     Body: Error details and recovery instructions
 ```
@@ -487,14 +520,14 @@ Rows: @{outputs('Performance_Metrics')}
 
 ```
 if(
-  equals(item()?['ActionType'], 'Issue'),
-  mul(item()?['QuantityChange'], -1),
+  equals(item()?['TransactionType'], 'ISSUE'),
+  mul(item()?['Qty'], -1),
   if(
-    equals(item()?['ActionType'], 'Receipt'),
-    item()?['QuantityChange'],
+    equals(item()?['TransactionType'], 'RECEIVE'),
+    item()?['Qty'],
     if(
-      equals(item()?['ActionType'], 'Adjustment'),
-      item()?['QuantityChange'],
+      equals(item()?['TransactionType'], 'RETURNED'),
+      item()?['Qty'],
       0
     )
   )
@@ -547,6 +580,14 @@ div(
 ```
 
 ## Error Handling Patterns
+
+**Note on Flow Error Log**: This scheduled flow uses checkpoint-based error tracking and circuit breaker patterns rather than the Flow Error Log list used by transaction-triggered flows. Errors are tracked via:
+- Checkpoint status updates with error metadata
+- Circuit breaker state management
+- Email notifications to administrators
+- Performance metrics logging
+
+This approach is more suitable for batch processing workflows where individual transaction IDs don't apply.
 
 ### Pattern 1: Retry with Exponential Backoff
 

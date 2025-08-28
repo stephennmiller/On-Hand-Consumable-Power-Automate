@@ -15,10 +15,10 @@ Processes validated ISSUE and RETURNED transactions to remove inventory from the
 
 ```powerautomate
 @and(
-  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
+  equals(trim(coalesce(triggerBody()?['PostStatus'], '')), 'Validated'),
   or(
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'),
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RETURNED')
+    equals(toUpper(trim(coalesce(triggerBody()?['TransactionType'], ''))), 'ISSUE'),
+    equals(toUpper(trim(coalesce(triggerBody()?['TransactionType'], ''))), 'RETURNED')
   )
 )
 ```
@@ -35,11 +35,14 @@ Processes validated ISSUE and RETURNED transactions to remove inventory from the
 4. Choose trigger: **"When an item is created or modified - SharePoint"**
 5. Configure:
    - Site Address: `@{environment('SharePointSiteUrl')}`
+     - **Note**: Replace 'SharePointSiteUrl' with your actual environment variable schema name (e.g., 'cr123_SharePointSiteUrl')
    - List Name: Tech Transactions
 6. **Advanced Options:**
    - Limit Columns by View: Yes (performance optimization)
 
-### Step 2: Set Trigger Condition
+### Step 2: Configure Trigger Settings
+
+#### Part A: Set Trigger Condition
 
 1. Click the three dots on the trigger → **"Settings"**
 2. Expand **"Trigger Conditions"**
@@ -48,18 +51,21 @@ Processes validated ISSUE and RETURNED transactions to remove inventory from the
 
 ```powerautomate
 @and(
-  equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'),
+  equals(trim(coalesce(triggerBody()?['PostStatus'], '')), 'Validated'),
   or(
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'),
-    equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'RETURNED')
+    equals(toUpper(trim(coalesce(triggerBody()?['TransactionType'], ''))), 'ISSUE'),
+    equals(toUpper(trim(coalesce(triggerBody()?['TransactionType'], ''))), 'RETURNED')
   )
 )
 ```
 
-1. Under **"Concurrency Control"**:
+#### Part B: Configure Concurrency Control (CRITICAL)
+
+1. In the same Settings panel, under **"Concurrency Control"**:
    - Toggle to **On**
-   - Set **"Degree of Parallelism"** to **1** (critical for preventing race conditions)
-2. Click **"Done"**
+   - Set **"Degree of Parallelism"** to **1**
+   - **⚠️ CRITICAL:** This MUST be set to 1 to prevent race conditions and ensure inventory accuracy
+2. Click **"Done"** to save all trigger settings
 
 ### Step 3: Add Atomic Transaction Scope
 
@@ -145,6 +151,8 @@ Add **"Delay"** action:
 
 - Count: 100
 - Unit: Millisecond
+
+**Rationale**: This small delay helps prevent SharePoint API throttling when multiple transactions arrive simultaneously. The 100ms delay is negligible for users but helps distribute API calls, reducing the chance of hitting SharePoint's rate limits (600 calls/minute per flow). This is especially important since this flow has concurrency set to 1, meaning transactions queue up and could hit the API rapidly in sequence.
 
 ### Step 6: Get and Lock On-Hand Row
 
@@ -251,11 +259,9 @@ Inside each iteration of the loop:
 
 #### 10a. Send Lock Request
 
-Add **"Send an HTTP request to SharePoint"** action:
+Add **"Send an HTTP request to SharePoint"** action.
 
-**Action Name:** "Lock_OnHand_with_ETag_Attempt"
-
-**Note:** Rename this action to exactly "Lock_OnHand_with_ETag_Attempt" to match expressions below.
+**⚠️ CRITICAL:** After adding this action, immediately click the title bar and rename it to exactly **"Lock_OnHand_with_ETag_Attempt"** (this exact name is required for all the expressions in subsequent steps).
 
 **Configure:**
 
@@ -429,7 +435,7 @@ Add **"Send an HTTP request to SharePoint"** action:
   "Title": "@{variables('vOriginalTitle')}",
   "OnHandQty": @{outputs('Compute_New_Qty')},
   "LastMovementAt": "@{utcNow()}",
-  "LastMovementType": "Issue",
+  "LastMovementType": "@{if(equals(toUpper(trim(coalesce(triggerBody()?['TransactionType'], ''))), 'RETURNED'), 'Returned', 'Issue')}",
   "LastMovementRefId": "@{variables('vId')}",
   "IsActive": @{if(greater(outputs('Compute_New_Qty'), 0), true, false)}
 }
@@ -547,6 +553,13 @@ Add **"Create item - SharePoint"** action:
   - ItemID: `@{variables('vId')}`
   - ErrorMessage: `Rollback executed for transaction @{variables('vId')}`
   - Timestamp: `utcNow()`
+  - FlowRunURL:
+    ```json
+    {
+      "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
+      "Description": "View Flow Run"
+    }
+    ```
 
 #### Step 16b: Always Execute - Error Logging (Outside the condition)
 
@@ -561,6 +574,13 @@ Add **"Create item - SharePoint"** action:
   - ItemID: `@{variables('vId')}`
   - ErrorMessage: `@{string(result('Atomic_Transaction_-_Issue_Processing'))}`
   - Timestamp: `utcNow()`
+  - FlowRunURL:
+    ```json
+    {
+      "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
+      "Description": "View Flow Run"
+    }
+    ```
 
 ##### Update Transaction with Error
 
@@ -626,7 +646,34 @@ Immediate investigation required.
 - [ ] Verify PostStatus = "Error"
 - [ ] Check error message indicates no inventory
 
-<!-- Test Case 5: Multiple Locations - Removed as Location is no longer part of the On-Hand model -->
+### Test Case 5: RETURNED Transaction - Full Stock
+
+- [ ] Create validated RETURNED transaction with valid PO
+- [ ] Verify On-Hand quantity decreases (same as ISSUE)
+- [ ] Check LastMovementType = "Returned"
+- [ ] Verify PostStatus = "Posted"
+- [ ] Confirm PostMessage indicates returned to vendor
+
+### Test Case 6: RETURNED Transaction - Partial Stock
+
+- [ ] Create RETURNED for partial quantity (e.g., 5 of 10 available)
+- [ ] Verify remaining quantity is correct (5 left)
+- [ ] Check transaction processes successfully
+- [ ] Verify LastMovementRefId contains transaction ID
+
+### Test Case 7: RETURNED Transaction - Insufficient Stock
+
+- [ ] Create RETURNED for more than available
+- [ ] Verify PostStatus = "Error"
+- [ ] Check error message shows "Cannot return 20 units - only 10 available"
+- [ ] Verify On-Hand unchanged
+
+### Test Case 8: RETURNED Transaction - Invalid PO
+
+- [ ] Create RETURNED without PO reference
+- [ ] Verify validation fails (FLOW-01 should catch)
+- [ ] Check PostStatus remains "New" (not validated)
+- [ ] Verify PostMessage indicates missing PO
 
 ## Configuration Options
 
@@ -661,7 +708,7 @@ This maintains a safety stock of 10 units.
 1. **Flow not triggering**
    - Verify PostStatus = "Validated" exactly (check Choice column values)
    - Check TransactionType = "Issue" (case insensitive due to toUpper)
-   - Ensure trigger condition syntax: `@and(equals(trim(coalesce(triggerOutputs()?['body/PostStatus'], '')), 'Validated'), equals(toUpper(trim(coalesce(triggerOutputs()?['body/TransactionType'], ''))), 'ISSUE'))`
+   - Ensure trigger condition syntax: `@and(equals(trim(coalesce(triggerBody()?['PostStatus'], '')), 'Validated'), equals(toUpper(trim(coalesce(triggerBody()?['TransactionType'], ''))), 'ISSUE'))`
 
 2. **Stock calculations wrong**
    - Verify float conversion: `float(variables('vQty'))`

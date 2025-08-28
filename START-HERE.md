@@ -2,7 +2,10 @@
 
 ## What You're Building
 
-A complete inventory tracking system in SharePoint + Power Automate that tracks consumable materials with receive/issue transactions.
+A complete inventory tracking system in SharePoint + Power Automate that tracks consumable materials through three transaction types:
+- **RECEIVE** - Adds inventory when materials arrive from vendors
+- **ISSUE** - Removes inventory when materials are consumed by technicians
+- **RETURNED** - Removes inventory when defective/damaged materials are returned to vendors for credit/replacement
 
 ## Required Order of Implementation
 
@@ -25,7 +28,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 |-------------|------|----------|
 | Title | Single line of text | Default column (can be used for display name) |
 | PartNumber | Single line of text | Required, Indexed, Enforce unique values |
-| PartDescription | Single line of text | Required |
+| PartDescription | Single line of text | Required, Max length: 255 |
 | DefaultUOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, etc. (Required) |
 | Category | Choice | Optional (e.g., Electronics, Hardware, Consumables) |
 | MinStockLevel | Number | Optional, Default: 0 |
@@ -46,8 +49,7 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | PO | Lookup | Optional (Required for ISSUE/RETURNED), Allow single selection, Source: PO List, Show: PONumber |
 | Qty | Number | Required, Min: 0.01, Decimal places: 2 |
 | PostStatus | Choice | Choices: New, Validated, Processing, Posted, Error (Default: New) |
-| PostMessage | Multiple lines of text | Optional (status messages) |
-| ErrorMessage | Multiple lines of text | Optional (legacy/compatibility) |
+| PostMessage | Multiple lines of text | Optional (status messages from flows) |
 | PostedAt | Date and Time | Optional (UTC timestamp when posted) |
 
 #### On-Hand Material List
@@ -63,18 +65,35 @@ A complete inventory tracking system in SharePoint + Power Automate that tracks 
 | LastMovementAt | Date and Time | Optional |
 | LastMovementType | Single line of text | Optional |
 | LastMovementRefId | Single line of text | Optional |
+| CompositeKey | Single line of text | Optional (future enhancement), Indexed |
 
-**Performance Note**: Consider adding a single line text column `CompositeKey` (indexed) that flows populate with normalized key: `concat(toUpper(trim(coalesce(variables('vPartNumber'), ''))),'|',toUpper(trim(coalesce(variables('vBatch'), ''))),'|',toUpper(trim(coalesce(variables('vUOM'), ''))))`. Always normalize with trim/uppercase before concatenation to avoid duplicate keys from casing/spacing differences. Since UOM is a Choice, it returns a string value (e.g., 'EA') which is perfect for the composite key.
+**CompositeKey Note**: This is an optional column for future performance optimization. The provided flows do NOT currently populate or use this field. If you wish to implement it:
+1. Add the column as shown above
+2. Modify FLOW-02 and FLOW-03 to populate it with: `concat(toUpper(trim(coalesce(variables('vPartNumber'), ''))),'|',toUpper(trim(coalesce(variables('vBatch'), ''))),'|',toUpper(trim(coalesce(variables('vUOM'), ''))))`
+3. Update Get items filters to use `CompositeKey eq '@{variables('vCompositeKey')}'` instead of the multi-column filter
+This optimization can improve query performance in high-volume scenarios but is not required for initial implementation.
 
 #### Flow Error Log List
 
 | Column Name | Type | Settings |
 |-------------|------|----------|
-| Title | Single line of text | Flow name |
-| ErrorMessage | Multiple lines of text | Required |
-| FlowRunURL | Hyperlink | Optional |
-| ItemID | Single line of text | Optional |
-| Timestamp | Date and Time | Required |
+| Title | Single line of text | Flow name that encountered the error |
+| ErrorMessage | Multiple lines of text | Required, full error details and stack trace |
+| FlowRunURL | Hyperlink or Picture (format: Hyperlink) | Optional, link to view flow run (see note below) |
+| ItemID | Single line of text | Optional, ID of source transaction that failed |
+| Timestamp | Date and Time | Required, when error occurred (UTC) |
+
+**Note**: This is a separate list for flow errors. Tech Transactions uses PostMessage field for status updates.
+
+**FlowRunURL Implementation**:
+- **Setting**: When using the SharePoint connector to set this Hyperlink field, pass a JSON object:
+```json
+{
+  "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
+  "Description": "View Flow Run"
+}
+```
+- **Reading**: When reading this field with the SharePoint connector, it returns an object with Url and Description properties. In some legacy contexts or REST API calls, it may return as a flat string.
 
 #### PO List (Required for ISSUE validation)
 
@@ -93,6 +112,61 @@ When using lookup columns in Power Automate flows:
 - To get the lookup value (PartNumber): `triggerBody()?['Part']?['Value']` or `triggerBody()?['Part_x003a_PartNumber']?['Value']`
 - To get additional fields (PartDescription): `triggerBody()?['Part_x003a_PartDescription']?['Value']`
 - For filtering by lookup: Use `Part/Id eq <id>` or `Part/PartNumber eq '<value>'` with `$expand=Part`
+
+### Setting Up Environment Variables (Required)
+
+All flows use Dataverse environment variables for configuration. Here's how to create them:
+
+1. **Navigate to Power Platform Admin Center**
+   - Go to https://admin.powerplatform.microsoft.com
+   - Select your environment
+
+2. **Create a Solution (if not already created)**
+   - In Power Apps, go to Solutions
+   - Click "New solution"
+   - Name: "Inventory Management System"
+   - Publisher: Select or create a publisher
+
+3. **Add Environment Variables to Solution**
+   - Inside your solution, click "New" → "More" → "Environment variable"
+   - Create the following variables:
+
+   **Variable 1: SharePointSiteUrl** (Required)
+   - Display name: SharePoint Site URL
+   - Schema name: new_SharePointSiteUrl (auto-generated, note your actual prefix)
+   - Data type: Text
+   - Current value: Your SharePoint site URL (e.g., https://yourcompany.sharepoint.com/sites/Inventory)
+
+   **Variable 2: AdminEmail** (Required)
+   - Display name: Admin Email
+   - Schema name: new_AdminEmail (auto-generated, note your actual prefix)
+   - Data type: Text
+   - Current value: Your admin email or distribution list (e.g., inventory-alerts@yourcompany.com)
+
+   **Variable 3: SignalRConnection** (Optional - only for real-time dashboard)
+   - Display name: SignalR Connection String
+   - Schema name: new_SignalRConnection (auto-generated, note your actual prefix)
+   - Data type: Text (or Secret for production)
+   - Current value: Your Azure SignalR connection string (if using real-time features)
+   - Note: Only needed if implementing real-time dashboard updates in FLOW-06
+
+4. **Using Environment Variables in Flows**
+   - In expressions, use the schema name with environment() function
+   - **Important**: Schema names include auto-generated prefixes based on your solution publisher
+   - Common patterns:
+     - Default publisher: `environment('new_SharePointSiteUrl')`
+     - Custom publisher: `environment('cr123_SharePointSiteUrl')`
+     - With underscores: `environment('contoso_SharePointSiteUrl')`
+
+   **Schema Name Mapping Guide** (replace with your actual schema names):
+
+   | Documentation Reference | Your Schema Name (Example) | Expression to Use |
+   |------------------------|---------------------------|-------------------|
+   | SharePointSiteUrl | new_SharePointSiteUrl | `environment('new_SharePointSiteUrl')` |
+   | AdminEmail | new_AdminEmail | `environment('new_AdminEmail')` |
+   | SignalRConnection | new_SignalRConnection | `environment('new_SignalRConnection')` |
+
+**Note**: Environment variables are environment-specific. When moving between Dev/Test/Prod, update the "Current value" for each environment without changing the flows.
 
 ### Phase 1: Core System (Build These First)
 
@@ -176,7 +250,7 @@ After building Phase 1, test with this sequence:
 
 | Problem | Solution |
 |---------|----------|
-| "Flow not triggering" | Verify trigger condition (use the one that matches your trigger output shape):<br/>`@equals(triggerOutputs()?['body/PostStatus'], 'Validated')`<br/>or (if PostStatus is an object):<br/>`@equals(triggerOutputs()?['body/PostStatus']?['Value'], 'Validated')` |
+| "Flow not triggering" | Verify trigger condition. All flows assume PostStatus returns a string value:<br/>`@equals(triggerBody()?['PostStatus'], 'Validated')`<br/>Note: If your SharePoint returns PostStatus as an object, update all trigger conditions to use:<br/>`@equals(triggerBody()?['PostStatus']?['Value'], 'Validated')` |
 | "PostStatus not updating" | Check exact column name spelling and that it's a Choice column with correct values |
 | "Duplicate inventory rows" | Fix OData filter: `Part/Id eq @{variables('vPartId')} and Batch eq '@{variables('vBatch')}' and UOM eq '@{variables('vUOM')}'` |
 | "Negative inventory allowed" | Add condition in FLOW-03 Step 12: `greaterOrEquals(outputs('Compute_New_Qty'), 0)` to allow exact depletion |

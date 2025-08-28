@@ -32,6 +32,7 @@ Transactions progress through these statuses:
 4. Choose trigger: **"When an item is created - SharePoint"**
 5. Configure:
    - Site Address: `@{environment('SharePointSiteUrl')}`
+     - **Note**: Replace 'SharePointSiteUrl' with your actual environment variable schema name (e.g., 'cr123_SharePointSiteUrl')
    - List Name: Tech Transactions
 6. **Trigger Settings:**
    - Click three dots → Settings
@@ -299,7 +300,7 @@ Add **"Get items - SharePoint"** action (in Yes of 10a):
 
 - Site Address: `@{environment('SharePointSiteUrl')}`
 - List Name: PO List
-- Filter Query: `PONumber eq '@{replace(variables('vPO'), '''', '''''')}'`
+- Filter Query: `PONumber eq '@{replace(variables('vPO'), '''', '''''')}' and IsOpen eq true`
 - Top Count: 1
 - **Select Query:** `PONumber,Status,VendorName,OrderDate,IsOpen`
 - **Settings:**
@@ -367,7 +368,13 @@ Add **"Create item - SharePoint"** action:
 - Fields:
   - Title: `TT - Intake Validate`
   - ErrorMessage: `@{concat('Error validating transaction ID: ', triggerBody()?['ID'], ' - ', substring(string(result('Try_-_Main_Logic')),0,min(4000,length(string(result('Try_-_Main_Logic'))))))}`
-  - FlowRunURL: `@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', variables('vFlowRunId'))}`
+  - FlowRunURL:
+    ```json
+    {
+      "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', variables('vFlowRunId'))}",
+      "Description": "View Flow Run"
+    }
+    ```
   - ItemID: `@{triggerBody()?['ID']}`
   - Timestamp: `utcNow()`
 

@@ -15,7 +15,7 @@ Automatically populates Description and UOM fields when a technician selects a P
 
 ```powerautomate
 @and(
-  equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), ''),
+  equals(coalesce(triggerBody()?['PostStatus'], ''), ''),
   greater(coalesce(triggerBody()?['Part']?['Id'], 0), 0)
 )
 ```
@@ -56,7 +56,7 @@ Skip this flow if:
 
 ```powerautomate
 @and(
-  equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), ''),
+  equals(coalesce(triggerBody()?['PostStatus'], ''), ''),
   greater(coalesce(triggerBody()?['Part']?['Id'], 0), 0)
 )
 ```
@@ -189,6 +189,58 @@ Add **"Compose"** action:
 }
 ```
 
+### Step 9: Add Error Handling Scope
+
+Add **"Scope"** action named **"Catch - Error Handling"**
+
+**Configure Run After:** Set this scope to run when previous actions have failed, are skipped, or have timed out
+
+Inside Catch scope:
+
+#### Step 9a: Initialize Error Variables
+
+Add **"Initialize variable"** action:
+
+- **Name:** vErrorMessage
+- **Type:** String
+- **Value:** `@{coalesce(outputs('Get_Part_from_Master')?['body']?['error']?['message'], outputs('Get_Part_from_Master')?['body']?['message'], 'Unknown error in autofill')}`
+
+#### Step 9b: Log Error
+
+Add **"Create item - SharePoint"** action:
+
+**Action Name:** "Log Autofill Error"
+
+**Configure:**
+
+- Site Address: `@{environment('SharePointSiteUrl')}`
+- List Name: Flow Error Log
+- Fields:
+  - Title: `TT - Autofill Description`
+  - ErrorMessage: `@{concat('Autofill error for transaction: ', coalesce(triggerBody()?['ID'], 'Unknown'), ' - ', variables('vErrorMessage'))}`
+  - ItemID: `@{string(triggerBody()?['ID'])}`
+  - Timestamp: `utcNow()`
+  - FlowRunURL:
+    ```json
+    {
+      "Url": "@{concat('https://make.powerautomate.com/environments/', workflow()?['tags']?['environmentName'], '/flows/', workflow()?['name'], '/runs/', workflow()?['run']?['name'])}",
+      "Description": "View Flow Run"
+    }
+    ```
+
+**Settings:**
+- Configure run after: Set to run even if previous action fails
+
+#### Step 9c: Continue Processing (Non-Critical)
+
+Add **"Terminate"** action:
+
+**Configure:**
+- Status: Succeeded
+- Message: `Autofill failed but transaction can continue`
+
+**Note:** Since autofill is an optional enhancement, we terminate with success to allow the main transaction flow to continue.
+
 ## Advanced Configuration
 
 ### Option 1: Populate Additional Fields
@@ -320,7 +372,7 @@ To ensure the Validation flow doesn't run before Autofill completes, add a trigg
 Add Trigger Condition:
 ```powerautomate
 @and(
-  equals(coalesce(triggerOutputs()?['body/PostStatus'], ''), ''),
+  equals(coalesce(triggerBody()?['PostStatus'], ''), ''),
   greater(length(coalesce(triggerBody()?['Description'], '')), 0)
 )
 ```
