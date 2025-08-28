@@ -49,7 +49,7 @@ Only proceed with demand update in the **Yes** branch.
 
 Inside the **Yes** branch of "Check if ISSUE Transaction":
 
-Add 6 **"Initialize variable"** actions:
+Add 11 **"Initialize variable"** actions:
 
 #### Variable 1: vDemandPartId
 
@@ -86,6 +86,36 @@ Add 6 **"Initialize variable"** actions:
 - **Name:** vDemandConvertedQty
 - **Type:** Float
 - **Value:** `0`
+
+#### Variable 7: vDemandRecordId
+
+- **Name:** vDemandRecordId
+- **Type:** Integer
+- **Value:** `0`
+
+#### Variable 8: vDemandUOM
+
+- **Name:** vDemandUOM
+- **Type:** String
+- **Value:** `''`
+
+#### Variable 9: vCurrentIssuedQty
+
+- **Name:** vCurrentIssuedQty
+- **Type:** Float
+- **Value:** `0`
+
+#### Variable 10: vNewIssuedQty
+
+- **Name:** vNewIssuedQty
+- **Type:** Float
+- **Value:** `0`
+
+#### Variable 11: vDemandETag
+
+- **Name:** vDemandETag
+- **Type:** String
+- **Value:** `''`
 
 ### Step 4: Get Matching Demand Record
 
