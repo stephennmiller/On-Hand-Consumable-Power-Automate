@@ -363,7 +363,10 @@ Inside error handler:
 
 After implementing this enhancement:
 
-1. Implement Weekly Shortage Report (see FLOW-08-Shortage-Report.md)
+1. Create a Weekly Shortage Report flow that:
+   - Aggregates demand across all active POs
+   - Compares to current on-hand inventory
+   - Emails shortage alerts to procurement team
 2. Create Power BI dashboard for demand visualization
 3. Add predictive analytics for future demand
 

@@ -105,6 +105,30 @@ This optimization can improve query performance in high-volume scenarios but is 
 | Status | Single line of text | Optional |
 | IsOpen | Yes/No | Required, Default: Yes |
 
+#### Material Demand List (Required for FLOW-07)
+
+| Column Name | Type | Settings |
+|-------------|------|----------|
+| Title | Single line of text | Default column |
+| PONumber | Lookup | Required, Source: PO List, Show: PONumber |
+| Part | Lookup | Required, Source: Parts Master, Show: PartNumber |
+| RequiredQty | Number | Required, Min: 0, Decimal places: 2 |
+| UOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, FT, IN, M (Required) |
+| IssuedQty | Number | Required, Default: 0, Decimal places: 2 |
+| DemandActive | Yes/No | Required, Default: Yes |
+| Notes | Multiple lines of text | Optional (for tracking updates) |
+
+#### UOM Conversions List (Required for FLOW-07)
+
+| Column Name | Type | Settings |
+|-------------|------|----------|
+| Title | Single line of text | Default column |
+| Part | Lookup | Required, Source: Parts Master, Show: PartNumber |
+| FromUOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, FT, IN, M (Required) |
+| ToUOM | Choice | Choices: EA, BOX, CASE, PK, RL, LB, GAL, FT, IN, M (Required) |
+| ConversionFactor | Number | Required, Min: 0, Decimal places: 6 |
+| IsActive | Yes/No | Required, Default: Yes |
+
 ### Important Notes on Lookup Columns in Power Automate
 
 When using lookup columns in Power Automate flows:
@@ -205,6 +229,12 @@ All flows use Dataverse environment variables for configuration. Here's how to c
    - Alerts for errors and performance issues
    - Time to build: 30 minutes
    - Keeps system healthy
+
+4. **[FLOW-07-Material-Demand.md](FLOW-07-Material-Demand.md)**
+   - Tracks material demand against Production Orders
+   - Time to build: 30 minutes
+   - Enables shortage reporting and procurement planning
+   - Requires: Material Demand and UOM Conversions lists (see schemas below)
 
 ## Quick Test Plan
 
