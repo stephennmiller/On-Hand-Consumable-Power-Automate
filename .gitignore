@@ -6,6 +6,7 @@ doc-work/
 
 # Claude Code configuration
 .claude/
+CLAUDE.md
 
 # OS generated files
 .DS_Store

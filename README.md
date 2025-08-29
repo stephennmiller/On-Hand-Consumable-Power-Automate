@@ -8,45 +8,42 @@ This repository contains comprehensive documentation for implementing an enterpr
 
 The documentation is organized in a logical implementation sequence. Follow the numbered guides in order for the smoothest deployment experience.
 
-### Phase 1: Foundation & Architecture (Start Here)
+### Quick Start
 
-| File | Description | Priority |
-|------|-------------|----------|
-| [00-architecture-overview.md](00-architecture-overview.md) | System architecture, SharePoint list setup, and data model | **Required** |
-| [01-error-handling-patterns.md](01-error-handling-patterns.md) | Error handling patterns and retry strategies | **Required** |
-| [02-performance-optimization.md](02-performance-optimization.md) | Performance best practices and optimization techniques | **Required** |
+**New to this system?** Start with [START-HERE.md](START-HERE.md) for prerequisites and setup instructions.
 
-### Phase 2: Core Transaction Flows
+### Phase 1: Core Transaction Flows (Required)
 
 Implement these flows in order as they build upon each other:
 
 | File | Description | Priority |
 |------|-------------|----------|
-| [03-intake-validation-flow.md](03-intake-validation-flow.md) | Initial data validation and preprocessing | **Required** |
-| [04-receive-flow.md](04-receive-flow.md) | Process material receives into inventory | **Required** |
-| [05-issue-flow.md](05-issue-flow.md) | Process material issues from inventory | **Required** |
-| [06-autofill-flow.md](06-autofill-flow.md) | Auto-populate form fields for better UX | Optional |
+| [FLOW-01-Intake-Validation.md](FLOW-01-Intake-Validation.md) | Initial data validation and preprocessing | **Required** |
+| [FLOW-02-Receive-Processing.md](FLOW-02-Receive-Processing.md) | Process material receives into inventory | **Required** |
+| [FLOW-03-Issue-Processing.md](FLOW-03-Issue-Processing.md) | Process material issues from inventory with locking | **Required** |
 
-### Phase 3: Advanced Processing & Optimization
-
-| File | Description | Priority |
-|------|-------------|----------|
-| [07-recalc-flow.md](07-recalc-flow.md) | Optimized nightly recalculation with 5x performance | Recommended |
-| [08-real-time-processor.md](08-real-time-processor.md) | Real-time transaction processing for high volume | Optional |
-| [09-migration-plan.md](09-migration-plan.md) | Migration strategy from basic to optimized flows | As Needed |
-
-### Phase 4: Monitoring & Quality Assurance
+### Phase 2: Optional Enhancements
 
 | File | Description | Priority |
 |------|-------------|----------|
-| [10-monitoring-alerting-flows.md](10-monitoring-alerting-flows.md) | System monitoring and alert notifications | **Required** |
-| [11-automated-test-flows.md](11-automated-test-flows.md) | Automated testing framework | Recommended |
+| [FLOW-04-Autofill-Optional.md](FLOW-04-Autofill-Optional.md) | Auto-populate form fields for better UX | Optional |
+| [FLOW-05-Daily-Recalc.md](FLOW-05-Daily-Recalc.md) | Daily reconciliation with batch processing | Recommended |
+| [FLOW-06-Monitoring-Alerts.md](FLOW-06-Monitoring-Alerts.md) | System monitoring and alert notifications | Recommended |
+| [FLOW-07-Material-Demand.md](FLOW-07-Material-Demand.md) | Material demand tracking for production orders | Optional |
 
-### Phase 5: Reporting & Analytics
+### Phase 3: Reference Documentation
+
+Located in the `reference-docs/` directory:
 
 | File | Description | Priority |
 |------|-------------|----------|
-| [12-power-bi-dashboard.md](12-power-bi-dashboard.md) | Power BI dashboard for inventory analytics | Optional |
+| [00-architecture-overview.md](reference-docs/00-architecture-overview.md) | System architecture and data model | Reference |
+| [01-error-handling-patterns.md](reference-docs/01-error-handling-patterns.md) | Error handling patterns and retry strategies | Reference |
+| [02-performance-optimization.md](reference-docs/02-performance-optimization.md) | Performance optimization techniques | Reference |
+| [08-real-time-processor.md](reference-docs/08-real-time-processor.md) | Real-time transaction processing | Advanced |
+| [09-migration-plan.md](reference-docs/09-migration-plan.md) | Migration from basic to optimized flows | As Needed |
+| [11-automated-test-flows.md](reference-docs/11-automated-test-flows.md) | Automated testing framework | Advanced |
+| [12-power-bi-dashboard.md](reference-docs/12-power-bi-dashboard.md) | Power BI dashboard for analytics | Optional |
 
 ## Implementation Approach
 
